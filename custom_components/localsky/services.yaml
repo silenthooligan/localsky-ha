@@ -1,0 +1,95 @@
+run_zone:
+  name: Run zone
+  description: >-
+    Run a single irrigation zone for a fixed duration. The LocalSky
+    service clamps to a defensive maximum (2 hours).
+  fields:
+    zone:
+      name: Zone slug
+      description: The zone identifier as configured in LocalSky (e.g. back_yard).
+      required: true
+      example: back_yard
+      selector:
+        text:
+    seconds:
+      name: Duration (seconds)
+      description: How long to run, in seconds. Clamped to [1, 7200].
+      required: true
+      example: 600
+      selector:
+        number:
+          min: 1
+          max: 7200
+          step: 1
+          unit_of_measurement: s
+          mode: box
+    entry_id:
+      name: LocalSky entry
+      description: >-
+        Optional. Targets a specific LocalSky deployment by config-entry
+        id. Leave empty to fan out to every configured LocalSky.
+      example: "01F3K2..."
+      selector:
+        text:
+
+stop_zone:
+  name: Stop zone
+  description: Stop a single irrigation zone immediately.
+  fields:
+    zone:
+      name: Zone slug
+      required: true
+      example: back_yard
+      selector:
+        text:
+    entry_id:
+      name: LocalSky entry
+      example: "01F3K2..."
+      selector:
+        text:
+
+stop_all:
+  name: Stop all zones
+  description: Stop every running irrigation zone immediately.
+  fields:
+    entry_id:
+      name: LocalSky entry
+      example: "01F3K2..."
+      selector:
+        text:
+
+pause:
+  name: Pause irrigation
+  description: >-
+    Pause the irrigation engine until N hours from now. Existing
+    schedules and manual runs will not fire. Use the resume service to
+    clear an active pause.
+  fields:
+    hours:
+      name: Pause duration (hours)
+      description: How long to pause, in hours. Default 24.
+      required: false
+      default: 24
+      example: 48
+      selector:
+        number:
+          min: 1
+          max: 720
+          step: 1
+          unit_of_measurement: h
+          mode: box
+    entry_id:
+      name: LocalSky entry
+      example: "01F3K2..."
+      selector:
+        text:
+
+resume:
+  name: Resume irrigation
+  description: Clear an active pause so the engine resumes normal operation.
+  fields:
+    entry_id:
+      name: LocalSky entry
+      example: "01F3K2..."
+      selector:
+        text:

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: LocalSky service bug
+    url: https://github.com/silenthooligan/localsky/issues
+    about: Bugs in the LocalSky dashboard, engine, or API belong in the main repo.
+  - name: LocalSky documentation
+    url: https://docs.localsky.io
+    about: Configuration reference, API, engine internals.

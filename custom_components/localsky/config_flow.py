@@ -21,6 +21,7 @@ from .const import (
     MIN_API_VERSION,
     MIN_SERVICE_VERSION,
 )
+from .util import format_base_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,8 +38,7 @@ async def _probe(
     session: aiohttp.ClientSession, host: str, port: int, use_https: bool
 ) -> dict[str, Any]:
     """GET /api/v1/info. Validates connectivity + returns service info."""
-    scheme = "https" if use_https else "http"
-    url = f"{scheme}://{host}:{port}{API_PREFIX}/info"
+    url = f"{format_base_url(host, port, use_https)}{API_PREFIX}/info"
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as r:
         r.raise_for_status()
         return await r.json()

@@ -19,6 +19,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import ACTION_RUN, ACTION_STOP, DOMAIN
 from .coordinator import LocalSkyCoordinator
+from .util import format_base_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,10 +66,14 @@ class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name="LocalSky",
-            manufacturer="silenthooligan",
-            model="LocalSky",
+            manufacturer="LocalSky",
+            model="LocalSky Service",
             sw_version=info.get("service_version", "unknown"),
-            configuration_url=f"http://{entry.data.get('host')}:{entry.data.get('port', 8090)}",
+            configuration_url=format_base_url(
+                entry.data.get("host", ""),
+                entry.data.get("port", 8090),
+                entry.data.get("use_https", False),
+            ),
         )
 
     @property

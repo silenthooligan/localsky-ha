@@ -1,0 +1,63 @@
+name: Bug report
+description: Something is wrong with the LocalSky HACS integration
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Bugs in the LocalSky service itself
+        (the dashboard, the engine, the API) belong at
+        https://github.com/silenthooligan/localsky/issues. Bugs in the
+        Home Assistant integration (entities, services, config flow,
+        device card) belong here.
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.5.3"
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: LocalSky HACS integration version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: localsky_version
+    attributes:
+      label: LocalSky service version
+      description: Run `curl http://<host>:8090/api/v1/info` to find it.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      placeholder: |
+        1. Settings -> Devices & Services -> Add Integration -> LocalSky
+        2. Enter host 192.168.X.Y, port 8090
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Home Assistant logs
+      description: |
+        Filter to `custom_components.localsky` when possible. Trim secrets.
+      render: shell
