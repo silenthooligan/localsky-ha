@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    name: Pack and attach to release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Adjust version in manifest.json
+        run: |
+          version="${GITHUB_REF#refs/tags/v}"
+          jq --arg v "$version" '.version = $v' \
+            custom_components/localsky/manifest.json > _tmp && \
+            mv _tmp custom_components/localsky/manifest.json
+      - name: Pack
+        run: |
+          cd custom_components/localsky
+          zip -r ../../localsky.zip .
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: localsky.zip

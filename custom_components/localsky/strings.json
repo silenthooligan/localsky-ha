@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to LocalSky",
+        "description": "Enter the host (IP or hostname) of your LocalSky instance. Default port is {default_port}.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "use_https": "Use HTTPS (only if you front LocalSky with a TLS reverse proxy)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach LocalSky at that host and port.",
+      "not_localsky": "The endpoint responded but is not a LocalSky instance.",
+      "unknown": "Unexpected error connecting to LocalSky. Check the host, port, and that LocalSky is reachable from Home Assistant."
+    },
+    "abort": {
+      "already_configured": "This LocalSky instance is already configured."
+    }
+  }
+}
