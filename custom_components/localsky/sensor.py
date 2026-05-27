@@ -275,45 +275,6 @@ async def _async_refresh_manifest_entities(
         async_add_entities(new_entities)
 
 
-class ManifestSensor(_LocalSkyBaseSensor):
-    """Sensor entity created from a LocalSky manifest descriptor.
-
-    Every metadata field (name, unit, device_class, state_class, icon)
-    comes from the descriptor, and ``native_value`` walks the
-    descriptor's ``snapshot`` + ``path`` against the coordinator data.
-    Adding a new sensor in LocalSky means adding a descriptor in
-    manifest.rs — no HACS code change required.
-    """
-
-    def __init__(
-        self,
-        coordinator: LocalSkyCoordinator,
-        entry: ConfigEntry,
-        desc: dict[str, Any],
-    ) -> None:
-        super().__init__(coordinator, entry)
-        self._desc = desc
-        self._snapshot = desc.get("snapshot", "")
-        self._path: tuple[str, ...] = tuple(desc.get("path", []))
-        self._attr_unique_id = f"{entry.entry_id}_{desc['id']}"
-        self._attr_name = desc.get("name") or desc["id"]
-        self._attr_native_unit_of_measurement = desc.get("unit")
-        self._attr_icon = desc.get("icon")
-        # HA's device_class/state_class enums accept their string values
-        # directly, so we just pass through whatever LocalSky declares.
-        # Invalid values would trigger a startup warning from HA, not a
-        # crash — easier to surface server-side than to redo the
-        # validation here.
-        if dc := desc.get("device_class"):
-            self._attr_device_class = dc
-        if sc := desc.get("state_class"):
-            self._attr_state_class = sc
-
-    @property
-    def native_value(self) -> Any:
-        return _walk((self.coordinator.data or {}).get(self._snapshot), self._path)
-
-
 class _LocalSkyBaseSensor(CoordinatorEntity[LocalSkyCoordinator], SensorEntity):
     """Common base: device-registry binding + availability."""
 
@@ -398,3 +359,42 @@ class LocalSkyZoneSensor(_LocalSkyBaseSensor):
             if z.get("slug") == self._slug:
                 return z.get(self._key)
         return None
+
+
+class ManifestSensor(_LocalSkyBaseSensor):
+    """Sensor entity created from a LocalSky manifest descriptor.
+
+    Every metadata field (name, unit, device_class, state_class, icon)
+    comes from the descriptor, and ``native_value`` walks the
+    descriptor's ``snapshot`` + ``path`` against the coordinator data.
+    Adding a new sensor in LocalSky means adding a descriptor in
+    manifest.rs — no HACS code change required.
+    """
+
+    def __init__(
+        self,
+        coordinator: LocalSkyCoordinator,
+        entry: ConfigEntry,
+        desc: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._desc = desc
+        self._snapshot = desc.get("snapshot", "")
+        self._path: tuple[str, ...] = tuple(desc.get("path", []))
+        self._attr_unique_id = f"{entry.entry_id}_{desc['id']}"
+        self._attr_name = desc.get("name") or desc["id"]
+        self._attr_native_unit_of_measurement = desc.get("unit")
+        self._attr_icon = desc.get("icon")
+        # HA's device_class/state_class enums accept their string values
+        # directly, so we just pass through whatever LocalSky declares.
+        # Invalid values would trigger a startup warning from HA, not a
+        # crash — easier to surface server-side than to redo the
+        # validation here.
+        if dc := desc.get("device_class"):
+            self._attr_device_class = dc
+        if sc := desc.get("state_class"):
+            self._attr_state_class = sc
+
+    @property
+    def native_value(self) -> Any:
+        return _walk((self.coordinator.data or {}).get(self._snapshot), self._path)
