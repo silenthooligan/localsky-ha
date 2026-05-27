@@ -18,6 +18,18 @@ from .coordinator import LocalSkyCoordinator
 TO_REDACT = {"token", "api_key", "ha_token", "vapid_public_key"}
 
 
+def _iso(v: Any) -> str | None:
+    """Best-effort ISO-8601 serialization for HA's last-update timestamp.
+    Different HA versions expose this as a datetime, an epoch float, or
+    not at all; we accept any of them."""
+    if v is None:
+        return None
+    isofmt = getattr(v, "isoformat", None)
+    if callable(isofmt):
+        return isofmt()
+    return str(v)
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
@@ -33,10 +45,9 @@ async def async_get_config_entry_diagnostics(
         },
         "coordinator": {
             "last_update_success": coordinator.last_update_success,
-            "last_update_success_time": (
-                coordinator.last_update_success_time.isoformat()
-                if coordinator.last_update_success_time
-                else None
+            "last_update_success_time": _iso(
+                getattr(coordinator, "last_update_success_time", None)
+                or getattr(coordinator, "last_update", None)
             ),
             "use_sse": coordinator.use_sse,
             "poll_interval": coordinator.poll_interval,
