@@ -153,11 +153,54 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up scalar sensors immediately, then add per-zone sensors as
-    LocalSky reports new zones via the coordinator's dynamic listener.
-    A zone added in LocalSky's UI surfaces in HA without reload."""
-    coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
+    """Manifest-first sensor setup (Phase 2 architecture).
 
+    LocalSky publishes a /sensors/manifest describing every entity it
+    can produce. When available, we iterate that and create one
+    ManifestSensor per descriptor — adding a new source/zone in
+    LocalSky surfaces in HA on next coordinator reload without any
+    HACS code change.
+
+    Older LocalSky versions don't publish a manifest; in that case the
+    coordinator.manifest is None and we fall back to the legacy
+    hardcoded WEATHER_SENSORS + zone-listener path.
+    """
+    coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
+    manifest = await coordinator.fetch_manifest()
+
+    if manifest is not None:
+        # Manifest-driven path
+        entities: list[SensorEntity] = []
+        seen_ids: set[str] = set()
+        for desc in manifest.get("entities", []):
+            if desc.get("platform") != "sensor":
+                continue
+            if desc["id"] in seen_ids:
+                continue
+            seen_ids.add(desc["id"])
+            entities.append(ManifestSensor(coordinator, entry, desc))
+        async_add_entities(entities)
+
+        # Dynamic re-registration on zone-change is still handled by the
+        # coordinator's listener — when zones appear/disappear, we
+        # re-fetch the manifest and add only newly-described entities.
+        seen_zone_keys: set[str] = set(seen_ids)
+
+        @callback
+        def _on_zones(_slugs: set[str]) -> None:
+            # Async refetch isn't allowed in a sync callback; punt to a
+            # task. Re-creates entities for any descriptor id we haven't
+            # already added.
+            hass.async_create_task(
+                _async_refresh_manifest_entities(
+                    hass, entry, coordinator, async_add_entities, seen_zone_keys
+                )
+            )
+
+        entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
+        return
+
+    # ── Fallback for LocalSky < manifest support ──
     scalars: list[SensorEntity] = [
         LocalSkyScalarSensor(coordinator, entry, d) for d in WEATHER_SENSORS
     ]
@@ -167,7 +210,7 @@ async def async_setup_entry(
     seen: set[str] = set()
 
     @callback
-    def _on_zones(slugs: set[str]) -> None:
+    def _on_zones_legacy(slugs: set[str]) -> None:
         new = slugs - seen
         if not new:
             return
@@ -205,7 +248,70 @@ async def async_setup_entry(
             async_add_entities(new_entities)
         seen.update(new)
 
-    entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
+    entry.async_on_unload(coordinator.add_zone_listener(_on_zones_legacy))
+
+
+async def _async_refresh_manifest_entities(
+    _hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: LocalSkyCoordinator,
+    async_add_entities: AddEntitiesCallback,
+    seen_ids: set[str],
+) -> None:
+    """Re-fetch the manifest and register any descriptors we haven't
+    seen yet (e.g. per-zone sensors for a newly-added zone)."""
+    manifest = await coordinator.fetch_manifest()
+    if manifest is None:
+        return
+    new_entities: list[SensorEntity] = []
+    for desc in manifest.get("entities", []):
+        if desc.get("platform") != "sensor":
+            continue
+        if desc["id"] in seen_ids:
+            continue
+        seen_ids.add(desc["id"])
+        new_entities.append(ManifestSensor(coordinator, entry, desc))
+    if new_entities:
+        async_add_entities(new_entities)
+
+
+class ManifestSensor(_LocalSkyBaseSensor):
+    """Sensor entity created from a LocalSky manifest descriptor.
+
+    Every metadata field (name, unit, device_class, state_class, icon)
+    comes from the descriptor, and ``native_value`` walks the
+    descriptor's ``snapshot`` + ``path`` against the coordinator data.
+    Adding a new sensor in LocalSky means adding a descriptor in
+    manifest.rs — no HACS code change required.
+    """
+
+    def __init__(
+        self,
+        coordinator: LocalSkyCoordinator,
+        entry: ConfigEntry,
+        desc: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._desc = desc
+        self._snapshot = desc.get("snapshot", "")
+        self._path: tuple[str, ...] = tuple(desc.get("path", []))
+        self._attr_unique_id = f"{entry.entry_id}_{desc['id']}"
+        self._attr_name = desc.get("name") or desc["id"]
+        self._attr_native_unit_of_measurement = desc.get("unit")
+        self._attr_icon = desc.get("icon")
+        # HA's device_class/state_class enums accept their string values
+        # directly, so we just pass through whatever LocalSky declares.
+        # Invalid values would trigger a startup warning from HA, not a
+        # crash — easier to surface server-side than to redo the
+        # validation here.
+        if dc := desc.get("device_class"):
+            self._attr_device_class = dc
+        if sc := desc.get("state_class"):
+            self._attr_state_class = sc
+
+    @property
+    def native_value(self) -> Any:
+        return _walk((self.coordinator.data or {}).get(self._snapshot), self._path)
 
 
 class _LocalSkyBaseSensor(CoordinatorEntity[LocalSkyCoordinator], SensorEntity):

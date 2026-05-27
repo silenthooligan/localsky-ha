@@ -63,6 +63,7 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._zone_listeners: list[Callable[[set[str]], None]] = []
         self._known_zones: set[str] = set()
         self.info: dict[str, Any] | None = None
+        self.manifest: dict[str, Any] | None = None
         # SSE-mode coordinators don't poll; pure polling-mode falls back
         # to the configured interval. We pick the mode in async_setup().
         super().__init__(
@@ -109,6 +110,37 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             r.raise_for_status()
             self.info = await r.json()
             return self.info
+
+    async def fetch_manifest(self) -> dict[str, Any] | None:
+        """GET /api/v1/sensors/manifest.
+
+        Returns the declarative entity inventory LocalSky publishes
+        (Phase 2 architecture). Each platform's setup_entry filters this
+        for its own platform type. Returns None when the endpoint is
+        unavailable (older LocalSky < manifest support) — callers fall
+        back to their hardcoded entity list.
+        """
+        url = f"{self._base_url}{API_PREFIX}/sensors/manifest"
+        try:
+            async with self._session.get(
+                url, timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                if r.status == 404:
+                    _LOGGER.info(
+                        "LocalSky at %s does not expose /sensors/manifest "
+                        "(server too old); using fallback entity list",
+                        self._base_url,
+                    )
+                    return None
+                r.raise_for_status()
+                self.manifest = await r.json()
+                return self.manifest
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.warning(
+                "Failed to fetch LocalSky manifest from %s: %s — using fallback",
+                url, err,
+            )
+            return None
 
     async def async_start(self) -> None:
         """Kick off SSE consumers + forecast poller. Polling fallback

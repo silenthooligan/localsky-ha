@@ -1,5 +1,11 @@
-"""Per-zone running binary sensor."""
+"""Binary sensors: per-zone running + LocalSky-driven diagnostics
+(ha_reachable, iu_suspended). Manifest-first (Phase 2 architecture);
+the legacy hardcoded zone-running path stays as a fallback for older
+LocalSky deployments that don't publish /sensors/manifest.
+"""
 from __future__ import annotations
+
+from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -16,19 +22,60 @@ from .coordinator import LocalSkyCoordinator
 from .util import format_base_url
 
 
+def _walk(data: Any, path: tuple[str, ...]) -> Any:
+    cur = data
+    for p in path:
+        if cur is None:
+            return None
+        if isinstance(cur, dict):
+            cur = cur.get(p)
+        else:
+            return None
+    return cur
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: LocalSkyCoordinator = hass.data[DOMAIN][entry.entry_id]
-    # System-wide "any zone running" binary; always present.
+    manifest = await coordinator.fetch_manifest()
+
+    if manifest is not None:
+        # Manifest-driven path: every binary_sensor descriptor becomes
+        # a ManifestBinarySensor. Adding a new diagnostic in LocalSky's
+        # manifest.rs surfaces as a new HA binary_sensor with no HACS
+        # code change.
+        entities: list[BinarySensorEntity] = [LocalSkyAnyZoneRunning(coordinator, entry)]
+        seen_ids: set[str] = set()
+        for desc in manifest.get("entities", []):
+            if desc.get("platform") != "binary_sensor":
+                continue
+            if desc["id"] in seen_ids:
+                continue
+            seen_ids.add(desc["id"])
+            entities.append(ManifestBinarySensor(coordinator, entry, desc))
+        async_add_entities(entities)
+
+        @callback
+        def _on_zones(_slugs: set[str]) -> None:
+            hass.async_create_task(
+                _async_refresh_manifest_binaries(
+                    entry, coordinator, async_add_entities, seen_ids
+                )
+            )
+
+        entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
+        return
+
+    # ── Fallback for LocalSky < manifest support ──
     async_add_entities([LocalSkyAnyZoneRunning(coordinator, entry)])
 
     seen: set[str] = set()
 
     @callback
-    def _on_zones(slugs: set[str]) -> None:
+    def _on_zones_legacy(slugs: set[str]) -> None:
         new = slugs - seen
         if not new:
             return
@@ -47,7 +94,70 @@ async def async_setup_entry(
         )
         seen.update(new)
 
-    entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
+    entry.async_on_unload(coordinator.add_zone_listener(_on_zones_legacy))
+
+
+async def _async_refresh_manifest_binaries(
+    entry: ConfigEntry,
+    coordinator: LocalSkyCoordinator,
+    async_add_entities: AddEntitiesCallback,
+    seen_ids: set[str],
+) -> None:
+    manifest = await coordinator.fetch_manifest()
+    if manifest is None:
+        return
+    new_entities: list[BinarySensorEntity] = []
+    for desc in manifest.get("entities", []):
+        if desc.get("platform") != "binary_sensor":
+            continue
+        if desc["id"] in seen_ids:
+            continue
+        seen_ids.add(desc["id"])
+        new_entities.append(ManifestBinarySensor(coordinator, entry, desc))
+    if new_entities:
+        async_add_entities(new_entities)
+
+
+class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorEntity):
+    """Binary sensor from a manifest descriptor (per-zone running,
+    diagnostic ha_reachable / iu_suspended, etc.)."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: LocalSkyCoordinator,
+        entry: ConfigEntry,
+        desc: dict[str, Any],
+    ) -> None:
+        super().__init__(coordinator)
+        self._desc = desc
+        self._snapshot = desc.get("snapshot", "")
+        self._path: tuple[str, ...] = tuple(desc.get("path", []))
+        self._attr_unique_id = f"{entry.entry_id}_{desc['id']}"
+        self._attr_name = desc.get("name") or desc["id"]
+        if dc := desc.get("device_class"):
+            self._attr_device_class = dc
+        if icon := desc.get("icon"):
+            self._attr_icon = icon
+        info = coordinator.info or {}
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="LocalSky",
+            manufacturer="LocalSky",
+            model="LocalSky Service",
+            sw_version=info.get("service_version", "unknown"),
+            configuration_url=format_base_url(
+                entry.data.get("host", ""),
+                entry.data.get("port", 8090),
+                entry.data.get("use_https", False),
+            ),
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        v = _walk((self.coordinator.data or {}).get(self._snapshot), self._path)
+        return None if v is None else bool(v)
 
 
 class _LocalSkyBaseBinary(CoordinatorEntity[LocalSkyCoordinator], BinarySensorEntity):
