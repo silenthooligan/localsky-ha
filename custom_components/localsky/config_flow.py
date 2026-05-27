@@ -53,14 +53,20 @@ async def _probe(
 def _version_ok(reported: Any, minimum: str) -> bool:
     """Return True if `reported` parses as a version and is >= `minimum`.
 
+    Pre-release / build suffixes are stripped before comparison so e.g.
+    ``0.2.0-alpha.1`` satisfies ``>= 0.2.0`` — the SemVer ordering would
+    treat the suffix as "earlier than", but for our compatibility-floor
+    purposes we want to accept anything in the 0.2.0 family.
+
     Unknown / unparseable versions fail closed: we'd rather surface a
     clear error in the config flow than silently pair against an instance
     that may not implement the endpoints this integration calls.
     """
     if not isinstance(reported, str) or not reported:
         return False
+    base = reported.split("-")[0].split("+")[0]
     try:
-        return AwesomeVersion(reported) >= AwesomeVersion(minimum)
+        return AwesomeVersion(base) >= AwesomeVersion(minimum)
     except AwesomeVersionException:
         return False
 
