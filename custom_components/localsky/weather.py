@@ -62,6 +62,33 @@ def _condition_from_snapshot(tempest: dict[str, Any]) -> str | None:
     return "clear-night"
 
 
+# LocalSky's forecast snapshot carries Open-Meteo WMO weather codes per day.
+# Map them to HA's daily-forecast condition vocabulary. Daily forecast is a
+# daytime summary, so code 0 is "sunny" (never "clear-night").
+_WMO_TO_CONDITION = {
+    0: "sunny",
+    1: "partlycloudy", 2: "partlycloudy",
+    3: "cloudy",
+    45: "fog", 48: "fog",
+    51: "rainy", 53: "rainy", 55: "rainy",
+    56: "snowy-rainy", 57: "snowy-rainy",
+    61: "rainy", 63: "rainy", 65: "pouring",
+    66: "snowy-rainy", 67: "snowy-rainy",
+    71: "snowy", 73: "snowy", 75: "snowy", 77: "snowy",
+    80: "rainy", 81: "rainy", 82: "pouring",
+    85: "snowy", 86: "snowy",
+    95: "lightning",
+    96: "lightning-rainy", 99: "lightning-rainy",
+}
+
+
+def _condition_from_wmo(code: Any) -> str | None:
+    try:
+        return _WMO_TO_CONDITION.get(int(code))
+    except (TypeError, ValueError):
+        return None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -145,20 +172,31 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
         days = forecast.get("daily") or forecast.get("days") or []
         out: list[Forecast] = []
         for d in days[:7]:
-            ts = d.get("epoch") or d.get("date_epoch")
+            # LocalSky's forecast snapshot uses `time_epoch`; keep the older
+            # keys as fallbacks for forward/backward compatibility.
+            ts = d.get("time_epoch") or d.get("epoch") or d.get("date_epoch")
             if isinstance(ts, (int, float)):
                 dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
             else:
                 continue
+            condition = _condition_from_wmo(d.get("weather_code"))
+            if condition is None:
+                condition = d.get("condition")
             out.append(
                 Forecast(
                     datetime=dt.isoformat(),
                     native_temperature=_as_float(d.get("temp_max_f")),
                     native_templow=_as_float(d.get("temp_min_f")),
-                    native_precipitation=_as_float(d.get("precip_in")),
-                    precipitation_probability=_as_int(d.get("precip_prob_pct")),
+                    native_precipitation=_as_float(
+                        d.get("precip_sum_in") if d.get("precip_sum_in") is not None else d.get("precip_in")
+                    ),
+                    precipitation_probability=_as_int(
+                        d.get("precip_probability_max")
+                        if d.get("precip_probability_max") is not None
+                        else d.get("precip_prob_pct")
+                    ),
                     native_wind_speed=_as_float(d.get("wind_max_mph")),
-                    condition=d.get("condition"),
+                    condition=condition,
                 )
             )
         return out or None
