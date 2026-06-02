@@ -29,9 +29,9 @@ DEFAULT_RUN_SECONDS = 600  # 10 min — matches LocalSky dashboard quick-run
 MIN_SERVICE_VERSION = "0.2.0"
 MIN_API_VERSION = "1.0.0"
 
-# Canonical API prefix on the LocalSky instance. The aperturelabs
-# internal deployment mounts both /api/* (legacy) and /api/v1/*
-# (canonical with /info). New HACS installs target /api/v1.
+# Canonical API prefix on the LocalSky instance. Some deployments
+# mount both /api/* (legacy) and /api/v1/* (canonical with /info).
+# New HACS installs target /api/v1.
 API_PREFIX = "/api/v1"
 
 # Service-action `kind` values dispatched to /api/v1/irrigation/action.
