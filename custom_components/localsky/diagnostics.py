@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .coordinator import LocalSkyCoordinator
 
-TO_REDACT = {"token", "api_key", "ha_token", "vapid_public_key"}
+TO_REDACT = {"token", "api_token", "api_key", "ha_token", "vapid_public_key"}
 
 
 def _iso(v: Any) -> str | None:

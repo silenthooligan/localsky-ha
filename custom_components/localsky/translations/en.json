@@ -9,6 +9,24 @@
           "port": "Port",
           "use_https": "Use HTTPS (only if you front LocalSky with a TLS reverse proxy)"
         }
+      },
+      "auth": {
+        "title": "LocalSky API token",
+        "description": "This LocalSky at {host} requires sign-in. In LocalSky, open Settings, then Account, create an API token (for example named home-assistant), and paste it here.",
+        "data": {
+          "api_token": "API token"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "LocalSky found",
+        "description": "Add LocalSky {version} at {host} to Home Assistant?"
+      },
+      "reauth_confirm": {
+        "title": "Reconnect to LocalSky",
+        "description": "LocalSky at {host} rejected the saved API token (revoked, or login was just enabled). Create a fresh token in LocalSky under Settings, then Account, and paste it here.",
+        "data": {
+          "api_token": "API token"
+        }
       }
     },
     "error": {
@@ -16,11 +34,16 @@
       "not_localsky": "The endpoint responded but is not a LocalSky instance.",
       "service_too_old": "LocalSky reported a service version older than this integration supports. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
       "api_too_old": "LocalSky reported an API version this integration cannot speak. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
-      "unknown": "Unexpected error connecting to LocalSky. Check the host, port, and that LocalSky is reachable from Home Assistant."
+      "unknown": "Unexpected error connecting to LocalSky. Check the host, port, and that LocalSky is reachable from Home Assistant.",
+      "invalid_auth": "LocalSky rejected that API token."
     },
     "abort": {
-      "already_configured": "This LocalSky instance is already configured."
-    }
+      "already_configured": "This LocalSky instance is already configured.",
+      "cannot_connect": "Could not reach the discovered LocalSky instance.",
+      "not_localsky": "The discovered endpoint is not a compatible LocalSky instance.",
+      "reauth_successful": "API token updated."
+    },
+    "flow_title": "LocalSky ({host})"
   },
   "options": {
     "step": {
@@ -40,39 +63,66 @@
       "name": "Run zone",
       "description": "Run a single irrigation zone for a fixed duration.",
       "fields": {
-        "zone": {"name": "Zone slug", "description": "The zone identifier as configured in LocalSky."},
-        "seconds": {"name": "Duration (seconds)", "description": "How long to run, in seconds."},
-        "entry_id": {"name": "LocalSky entry", "description": "Optional. Target a specific LocalSky deployment."}
+        "zone": {
+          "name": "Zone slug",
+          "description": "The zone identifier as configured in LocalSky."
+        },
+        "seconds": {
+          "name": "Duration (seconds)",
+          "description": "How long to run, in seconds."
+        },
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific LocalSky deployment."
+        }
       }
     },
     "stop_zone": {
       "name": "Stop zone",
       "description": "Stop a single irrigation zone immediately.",
       "fields": {
-        "zone": {"name": "Zone slug", "description": "The zone to stop."},
-        "entry_id": {"name": "LocalSky entry", "description": "Optional. Target a specific deployment."}
+        "zone": {
+          "name": "Zone slug",
+          "description": "The zone to stop."
+        },
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific deployment."
+        }
       }
     },
     "stop_all": {
       "name": "Stop all zones",
       "description": "Stop every running irrigation zone immediately.",
       "fields": {
-        "entry_id": {"name": "LocalSky entry", "description": "Optional. Target a specific deployment."}
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific deployment."
+        }
       }
     },
     "pause": {
       "name": "Pause irrigation",
       "description": "Pause the irrigation engine until N hours from now.",
       "fields": {
-        "hours": {"name": "Pause duration (hours)", "description": "How long to pause, in hours. Default 24."},
-        "entry_id": {"name": "LocalSky entry", "description": "Optional. Target a specific deployment."}
+        "hours": {
+          "name": "Pause duration (hours)",
+          "description": "How long to pause, in hours. Default 24."
+        },
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific deployment."
+        }
       }
     },
     "resume": {
       "name": "Resume irrigation",
       "description": "Clear an active pause so the engine resumes normal operation.",
       "fields": {
-        "entry_id": {"name": "LocalSky entry", "description": "Optional. Target a specific deployment."}
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific deployment."
+        }
       }
     }
   }

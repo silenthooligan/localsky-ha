@@ -23,10 +23,12 @@ from typing import Any
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     API_PREFIX,
+    CONF_API_TOKEN,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_USE_SSE,
     DOMAIN,
@@ -58,6 +60,12 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._entry = entry
         self._session = session
         self._base_url = base_url.rstrip("/")
+        # Bearer header on every request when the instance requires auth
+        # (token captured by the config flow's auth step).
+        token = entry.data.get(CONF_API_TOKEN)
+        self._headers: dict[str, str] = (
+            {"Authorization": f"Bearer {token}"} if token else {}
+        )
         self._sse_tasks: list[asyncio.Task[None]] = []
         self._forecast_task: asyncio.Task[None] | None = None
         self._zone_listeners: list[Callable[[set[str]], None]] = []
@@ -106,7 +114,9 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def fetch_info(self) -> dict[str, Any]:
         url = f"{self._base_url}{API_PREFIX}/info"
-        async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as r:
+        async with self._session.get(
+            url, timeout=aiohttp.ClientTimeout(total=10), headers=self._headers
+        ) as r:
             r.raise_for_status()
             self.info = await r.json()
             return self.info
@@ -123,7 +133,7 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         url = f"{self._base_url}{API_PREFIX}/sensors/manifest"
         try:
             async with self._session.get(
-                url, timeout=aiohttp.ClientTimeout(total=10)
+                url, timeout=aiohttp.ClientTimeout(total=10), headers=self._headers
             ) as r:
                 if r.status == 404:
                     _LOGGER.info(
@@ -204,8 +214,11 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _fetch(self, path: str) -> dict[str, Any]:
         url = f"{self._base_url}{API_PREFIX}{path}"
         async with self._session.get(
-            url, timeout=aiohttp.ClientTimeout(total=15)
+            url, timeout=aiohttp.ClientTimeout(total=15), headers=self._headers
         ) as r:
+            if r.status == 401:
+                # Token revoked or auth newly enabled: kick off reauth.
+                raise ConfigEntryAuthFailed("LocalSky rejected the API token")
             r.raise_for_status()
             return await r.json()
 
@@ -225,8 +238,15 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     timeout=aiohttp.ClientTimeout(
                         total=None, sock_connect=10, sock_read=None
                     ),
-                    headers={"Accept": "text/event-stream"},
+                    headers={"Accept": "text/event-stream", **self._headers},
                 ) as resp:
+                    if resp.status == 401:
+                        _LOGGER.warning(
+                            "LocalSky rejected the API token on %s; starting reauth",
+                            path,
+                        )
+                        self._entry.async_start_reauth(self.hass)
+                        return
                     resp.raise_for_status()
                     backoff = SSE_BACKOFF_INITIAL
                     async for snapshot in self._iter_sse_events(resp):
@@ -317,7 +337,10 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             url,
             json=payload,
             timeout=aiohttp.ClientTimeout(total=15),
+            headers=self._headers,
         ) as r:
+            if r.status == 401:
+                raise ConfigEntryAuthFailed("LocalSky rejected the API token")
             r.raise_for_status()
         # Force a refresh so state updates fast when SSE isn't carrying it.
         if not self.use_sse:

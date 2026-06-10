@@ -7,6 +7,7 @@ DOMAIN = "localsky"
 CONF_HOST = "host"
 CONF_PORT = "port"
 CONF_USE_HTTPS = "use_https"
+CONF_API_TOKEN = "api_token"
 
 # Options-flow keys.
 OPT_USE_SSE = "use_sse"

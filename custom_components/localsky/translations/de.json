@@ -2,58 +2,58 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to LocalSky",
-        "description": "Enter the host (IP or hostname) of your LocalSky instance. Default port is {default_port}.",
+        "title": "Mit LocalSky verbinden",
+        "description": "Host (IP oder Name) der LocalSky-Instanz eingeben. Standardport ist {default_port}.",
         "data": {
           "host": "Host",
           "port": "Port",
-          "use_https": "Use HTTPS (only if you front LocalSky with a TLS reverse proxy)"
+          "use_https": "HTTPS verwenden (nur hinter einem TLS-Reverse-Proxy)"
         }
       },
       "auth": {
-        "title": "LocalSky API token",
-        "description": "This LocalSky at {host} requires sign-in. In LocalSky, open Settings, then Account, create an API token (for example named home-assistant), and paste it here.",
+        "title": "LocalSky API-Token",
+        "description": "Diese LocalSky-Instanz unter {host} verlangt eine Anmeldung. In LocalSky unter Einstellungen, dann Konto einen API-Token erstellen (z.B. home-assistant) und hier einfuegen.",
         "data": {
-          "api_token": "API token"
+          "api_token": "API-Token"
         }
       },
       "zeroconf_confirm": {
-        "title": "LocalSky found",
-        "description": "Add LocalSky {version} at {host} to Home Assistant?"
+        "title": "LocalSky gefunden",
+        "description": "LocalSky {version} unter {host} zu Home Assistant hinzufuegen?"
       },
       "reauth_confirm": {
-        "title": "Reconnect to LocalSky",
-        "description": "LocalSky at {host} rejected the saved API token (revoked, or login was just enabled). Create a fresh token in LocalSky under Settings, then Account, and paste it here.",
+        "title": "Neu mit LocalSky verbinden",
+        "description": "LocalSky unter {host} hat den gespeicherten Token abgelehnt. Neuen Token unter Einstellungen, dann Konto erstellen und hier einfuegen.",
         "data": {
-          "api_token": "API token"
+          "api_token": "API-Token"
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not reach LocalSky at that host and port.",
-      "not_localsky": "The endpoint responded but is not a LocalSky instance.",
+      "cannot_connect": "LocalSky war unter diesem Host und Port nicht erreichbar.",
+      "not_localsky": "Der Endpunkt antwortet, ist aber keine LocalSky-Instanz.",
       "service_too_old": "LocalSky reported a service version older than this integration supports. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
       "api_too_old": "LocalSky reported an API version this integration cannot speak. Update LocalSky to a recent release and try again. See https://github.com/silenthooligan/localsky-hacs#requirements for the minimum.",
-      "unknown": "Unexpected error connecting to LocalSky. Check the host, port, and that LocalSky is reachable from Home Assistant.",
-      "invalid_auth": "LocalSky rejected that API token."
+      "unknown": "Unerwarteter Fehler bei der Verbindung mit LocalSky.",
+      "invalid_auth": "LocalSky hat den API-Token abgelehnt."
     },
     "abort": {
-      "already_configured": "This LocalSky instance is already configured.",
-      "cannot_connect": "Could not reach the discovered LocalSky instance.",
-      "not_localsky": "The discovered endpoint is not a compatible LocalSky instance.",
-      "reauth_successful": "API token updated."
+      "already_configured": "Diese LocalSky-Instanz ist bereits eingerichtet.",
+      "cannot_connect": "Die gefundene Instanz war nicht erreichbar.",
+      "not_localsky": "Der gefundene Dienst ist keine kompatible LocalSky-Instanz.",
+      "reauth_successful": "API-Token aktualisiert."
     },
     "flow_title": "LocalSky ({host})"
   },
   "options": {
     "step": {
       "init": {
-        "title": "LocalSky options",
-        "description": "Tune how this integration talks to LocalSky.",
+        "title": "LocalSky-Optionen",
+        "description": "Feinabstimmung der Verbindung zu LocalSky.",
         "data": {
-          "use_sse": "Use Server-Sent Events (push updates from LocalSky)",
-          "poll_interval_seconds": "Polling interval (seconds) — used only when SSE is disabled",
-          "default_run_seconds": "Default valve open duration (seconds)"
+          "use_sse": "Server-Sent Events verwenden (Push-Updates)",
+          "poll_interval_seconds": "Abfrageintervall (Sekunden), nur ohne SSE",
+          "default_run_seconds": "Standard-Bewaesserungsdauer (Sekunden)"
         }
       }
     }
