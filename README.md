@@ -8,10 +8,10 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache_2.0-3b82f6.svg"></a>
   <a href="https://github.com/hacs/integration"><img alt="HACS" src="https://img.shields.io/badge/HACS-Custom-orange.svg"></a>
-  <a href="https://www.home-assistant.io/"><img alt="HA 2024.4+" src="https://img.shields.io/badge/Home_Assistant-2024.4+-blue.svg"></a>
+  <a href="https://www.home-assistant.io/"><img alt="HA 2024.11+" src="https://img.shields.io/badge/Home_Assistant-2024.11+-blue.svg"></a>
 </p>
 
-This integration turns a running [LocalSky](https://github.com/silenthooligan/localsky) instance into a first-class Home Assistant device. Every sensor that LocalSky's dashboard surfaces becomes a HA entity, and each zone exposes a switch you can drive from automations.
+This integration turns a running [LocalSky](https://github.com/silenthooligan/localsky) instance into a first-class Home Assistant device. Full setup guide: [localsky.io/docs/hacs](https://localsky.io/docs/hacs). Every sensor that LocalSky's dashboard surfaces becomes a HA entity, and each zone exposes a switch you can drive from automations.
 
 LocalSky itself runs as a separate service (one Docker container on your LAN). This is just the thin Python client that exposes its REST API to HA.
 
