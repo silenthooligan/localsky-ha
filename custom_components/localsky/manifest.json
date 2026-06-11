@@ -1,24 +1,24 @@
 {
-  "domain": "localsky",
-  "name": "LocalSky",
-  "codeowners": [
-    "@silenthooligan"
-  ],
-  "config_flow": true,
-  "dependencies": [],
-  "documentation": "https://github.com/silenthooligan/localsky-hacs",
-  "integration_type": "service",
-  "iot_class": "local_push",
-  "issue_tracker": "https://github.com/silenthooligan/localsky-hacs/issues",
-  "loggers": [
-    "custom_components.localsky"
-  ],
-  "quality_scale": "silver",
-  "requirements": [
-    "aiohttp>=3.9.0"
-  ],
-  "version": "0.6.0",
-  "zeroconf": [
-    "_localsky._tcp.local."
-  ]
+ "domain": "localsky",
+ "name": "LocalSky",
+ "codeowners": [
+  "@silenthooligan"
+ ],
+ "config_flow": true,
+ "dependencies": [],
+ "documentation": "https://localsky.io/docs/hacs",
+ "integration_type": "service",
+ "iot_class": "local_push",
+ "issue_tracker": "https://github.com/silenthooligan/localsky-hacs/issues",
+ "loggers": [
+  "custom_components.localsky"
+ ],
+ "quality_scale": "silver",
+ "requirements": [
+  "aiohttp>=3.9.0"
+ ],
+ "version": "0.6.0",
+ "zeroconf": [
+  "_localsky._tcp.local."
+ ]
 }
