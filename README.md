@@ -80,8 +80,9 @@ installation type, but how you run the server depends on yours (check
   [![Add the LocalSky app repository to my Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsilenthooligan%2Flocalsky-apps)
 
 - **Container or Core** (no app store), or any other machine on your LAN:
-  run the same server [with Docker](https://localsky.io/docs/getting-started),
-  it is one container.
+  run the server [with Docker](https://localsky.io/docs/getting-started),
+  it is one container. Docker is the preferred way to run LocalSky
+  overall; the app above is the same image packaged for HAOS convenience.
 
 ## Contributing
 
