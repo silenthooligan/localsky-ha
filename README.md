@@ -66,16 +66,22 @@ Enter the host and port (default `8090`). Instances with auth enabled will ask f
 
 ## No LocalSky yet?
 
-- **Home Assistant OS / Supervised**: install the server as a
+This integration is the bridge; it needs a running LocalSky **server** to
+pair with. The integration itself works on **every** Home Assistant
+installation type, but how you run the server depends on yours (check
+**Settings > About**, the **Installation method** line):
+
+- **Home Assistant OS or Supervised**: install the server as a
   [Home Assistant app](https://github.com/silenthooligan/localsky-apps),
-  one click and it runs right next to HA (this integration then discovers
-  it automatically):
+  one click and it runs right next to HA, and this integration then
+  discovers it automatically. The app store only exists on these two
+  installation types:
 
   [![Add the LocalSky app repository to my Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsilenthooligan%2Flocalsky-apps)
 
-- **Anywhere else Docker runs**: follow the
-  [quick start](https://localsky.io/docs/getting-started), it is one
-  container.
+- **Container or Core** (no app store), or any other machine on your LAN:
+  run the same server [with Docker](https://localsky.io/docs/getting-started),
+  it is one container.
 
 ## Contributing
 
