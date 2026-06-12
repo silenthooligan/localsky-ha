@@ -5,6 +5,8 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from homeassistant.helpers import entity_registry as er
+
 from custom_components.localsky.const import DOMAIN
 from custom_components.localsky.coordinator import LocalSkyCoordinator
 
@@ -85,32 +87,46 @@ async def _setup(hass: HomeAssistant) -> MockConfigEntry:
     return entry
 
 
+def _state(hass: HomeAssistant, entry, key: str):
+    """Resolve a manifest entity by unique_id; entity_id naming is the
+    registry's business, not the test's."""
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{entry.entry_id}_{key}"
+    )
+    return hass.states.get(entity_id) if entity_id else None
+
+
 @pytest.mark.asyncio
 async def test_manifest_sensors_created_with_values(hass: HomeAssistant) -> None:
-    await _setup(hass)
-    temp = hass.states.get("sensor.localsky_air_temperature")
+    entry = await _setup(hass)
+    temp = _state(hass, entry, "air_temp_f")
     assert temp is not None
     assert float(temp.state) == 84.2
     assert temp.attributes["unit_of_measurement"] == "°F"
 
-    rain = hass.states.get("sensor.localsky_rain_today")
+    rain = _state(hass, entry, "rain_in_today")
     assert rain is not None
     assert float(rain.state) == 0.37
 
 
 @pytest.mark.asyncio
 async def test_zone_scoped_path_resolves_through_zones_list(hass: HomeAssistant) -> None:
-    await _setup(hass)
-    soil = hass.states.get("sensor.localsky_front_soil_moisture")
+    entry = await _setup(hass)
+    soil = _state(hass, entry, "front_soil_moisture")
     assert soil is not None
     assert float(soil.state) == 41.5
 
 
 @pytest.mark.asyncio
 async def test_sensor_setup_ignores_other_platform_descriptors(hass: HomeAssistant) -> None:
-    await _setup(hass)
+    entry = await _setup(hass)
     # The binary_sensor descriptor must not materialize as a sensor.
-    assert hass.states.get("sensor.localsky_front_running") is None
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_front_running")
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -120,4 +136,4 @@ async def test_values_update_with_coordinator_data(hass: HomeAssistant) -> None:
     updated = {**DATA, "tempest": {**DATA["tempest"], "air_temp_f": 70.1}}
     coordinator.async_set_updated_data(updated)
     await hass.async_block_till_done()
-    assert float(hass.states.get("sensor.localsky_air_temperature").state) == 70.1
+    assert float(_state(hass, entry, "air_temp_f").state) == 70.1

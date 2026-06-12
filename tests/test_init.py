@@ -72,9 +72,11 @@ async def test_services_survive_until_last_entry_unloads(hass: HomeAssistant) ->
     second.add_to_hass(hass)
     p1, p2, p3, p4 = _patched_network()
     with p1, p2, p3, p4:
+        # Setting up the first entry loads the component, which sets up
+        # every registered entry of the domain, including the second.
         assert await hass.config_entries.async_setup(first.entry_id)
-        assert await hass.config_entries.async_setup(second.entry_id)
         await hass.async_block_till_done()
+        assert second.state is ConfigEntryState.LOADED
 
         assert await hass.config_entries.async_unload(first.entry_id)
         await hass.async_block_till_done()
