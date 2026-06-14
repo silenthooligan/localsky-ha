@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/silenthooligan/localsky-hacs/actions/workflows/validate.yml"><img alt="Validate" src="https://github.com/silenthooligan/localsky-hacs/actions/workflows/validate.yml/badge.svg"></a>
-  <a href="https://github.com/silenthooligan/localsky-hacs/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/silenthooligan/localsky-hacs?color=3b82f6"></a>
+  <a href="https://github.com/silenthooligan/localsky-ha/actions/workflows/validate.yml"><img alt="Validate" src="https://github.com/silenthooligan/localsky-ha/actions/workflows/validate.yml/badge.svg"></a>
+  <a href="https://github.com/silenthooligan/localsky-ha/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/silenthooligan/localsky-ha?color=3b82f6"></a>
   <a href="https://github.com/hacs/integration"><img alt="HACS" src="https://img.shields.io/badge/HACS-Integration-orange.svg"></a>
   <a href="https://www.home-assistant.io/"><img alt="HA 2024.11+" src="https://img.shields.io/badge/Home_Assistant-2024.11+-blue.svg"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/License-Apache_2.0-3b82f6.svg"></a>
@@ -45,11 +45,11 @@ Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 
 **One click** (opens your own Home Assistant):
 
-[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=silenthooligan&repository=localsky-hacs&category=integration)
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=silenthooligan&repository=localsky-ha&category=integration)
 
 Install **LocalSky** when HACS opens, then restart Home Assistant.
 
-**Or by hand**: HACS, three-dot menu, **Custom repositories**, add `https://github.com/silenthooligan/localsky-hacs` as category **Integration**, install, restart. (Default-catalog inclusion is pending review; until then the repository adds as a custom one either way.)
+**Or by hand**: HACS, three-dot menu, **Custom repositories**, add `https://github.com/silenthooligan/localsky-ha` as category **Integration**, install, restart. (Default-catalog inclusion is pending review; until then the repository adds as a custom one either way.)
 
 ## Pair
 
@@ -86,7 +86,7 @@ installation type, but how you run the server depends on yours (check
 
 ## Contributing
 
-Bug reports and PRs welcome. Engine, weather source, or controller issues belong on the main [LocalSky repo](https://github.com/silenthooligan/localsky/issues); config flow, entity, or pairing issues belong [here](https://github.com/silenthooligan/localsky-hacs/issues).
+Bug reports and PRs welcome. Engine, weather source, or controller issues belong on the main [LocalSky repo](https://github.com/silenthooligan/localsky/issues); config flow, entity, or pairing issues belong [here](https://github.com/silenthooligan/localsky-ha/issues).
 
 ## License
 
