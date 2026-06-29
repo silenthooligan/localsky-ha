@@ -99,12 +99,15 @@ set_override:
   description: >-
     Set the sticky global irrigation override. It persists until changed
     (no nightly reset). Auto follows the engine verdict, Skip force-skips
-    every zone, and Run forces watering past the skip conditions. A per-zone
-    override (set_zone_override) beats this one.
+    every zone, and Run forces watering through the hard guards (freeze,
+    watering restriction, currently-raining). A per-zone override
+    (set_zone_override) beats this one.
   fields:
     mode:
       name: Mode
-      description: Auto follows the engine, Skip force-skips, Run forces watering.
+      description: >-
+        Auto follows the engine, Skip force-skips, Run forces watering through
+        the hard freeze and watering-restriction guards.
       required: true
       example: auto
       selector:
@@ -128,7 +131,9 @@ set_zone_override:
     Set a sticky per-zone irrigation override. It persists until changed
     and beats the global override. Auto clears the zone override so it falls
     back to the global override or the engine verdict, Skip force-skips the
-    zone, and Run forces it to water.
+    zone, and Run forces this zone to water through the hard guards (freeze,
+    watering restriction, currently-raining), exactly like a global Run for
+    this one zone.
   fields:
     zone:
       name: Zone slug
@@ -139,7 +144,9 @@ set_zone_override:
         text:
     mode:
       name: Mode
-      description: Auto clears the override, Skip force-skips, Run forces watering.
+      description: >-
+        Auto clears the override, Skip force-skips, Run forces this zone to
+        water through the hard freeze and watering-restriction guards.
       required: true
       example: auto
       selector:

@@ -36,8 +36,16 @@ _LOGGER = logging.getLogger(__name__)
 
 # Tempest precip_type to HA condition. Tempest reports 0=none/1=rain/2=hail.
 # We blend with cloud-cover heuristics from solar irradiance only when
-# precip is none, since LocalSky doesn't yet expose a cloud-cover field.
-def _condition_from_snapshot(tempest: dict[str, Any]) -> str | None:
+# precip is none, since LocalSky doesn't yet expose a live cloud-cover field.
+#
+# `forecast` is the forecast snapshot; on a cloud-only install (no live local
+# station: snap.has_live_station is false) the solar-only heuristic has no real
+# signal at night and would always read "clear-night", so we fall back to the
+# nearest-hour forecast weather_code instead.
+def _condition_from_snapshot(
+    tempest: dict[str, Any],
+    forecast: dict[str, Any] | None = None,
+) -> str | None:
     precip_type = tempest.get("precip_type")
     rain_in_hr = float(tempest.get("rain_intensity_in_hr") or 0)
     lightning = int(tempest.get("lightning_strikes_last_hour") or 0)
@@ -49,6 +57,17 @@ def _condition_from_snapshot(tempest: dict[str, Any]) -> str | None:
         if rain_in_hr >= 0.3:
             return "pouring"
         return "rainy"
+
+    # Cloud-only install (no live local weather station): the solar-only
+    # heuristic below is meaningless (solar reads 0 every night and the
+    # forecast-filled current carries no live cloud-cover signal), so a cloudy
+    # or overcast night would wrongly paint "clear-night". Prefer the
+    # nearest-hour forecast weather_code, which is a real sky-condition signal.
+    if not tempest.get("has_live_station", False):
+        wmo = _condition_from_nearest_hour(forecast)
+        if wmo is not None:
+            return wmo
+
     solar = float(tempest.get("solar_w_m2") or 0)
     wind = float(tempest.get("wind_avg_mph") or 0)
     if wind >= 18:
@@ -60,6 +79,37 @@ def _condition_from_snapshot(tempest: dict[str, Any]) -> str | None:
     if solar > 30:
         return "cloudy"
     return "clear-night"
+
+
+def _condition_from_nearest_hour(forecast: dict[str, Any] | None) -> str | None:
+    """Map the forecast's nearest-hour WMO weather_code to an HA condition.
+
+    Used as the current condition on a cloud-only install where there is no
+    live cloud/precip signal. Picks the hourly entry whose `time_epoch` is
+    closest to now. Returns None when the forecast carries no usable hourly
+    data (caller then falls through to the solar heuristic).
+    """
+    if not isinstance(forecast, dict):
+        return None
+    hourly = forecast.get("hourly") or []
+    if not isinstance(hourly, list) or not hourly:
+        return None
+    now = datetime.now(tz=timezone.utc).timestamp()
+    nearest: dict[str, Any] | None = None
+    best_delta: float | None = None
+    for h in hourly:
+        if not isinstance(h, dict):
+            continue
+        ts = h.get("time_epoch")
+        if not isinstance(ts, (int, float)):
+            continue
+        delta = abs(float(ts) - now)
+        if best_delta is None or delta < best_delta:
+            best_delta = delta
+            nearest = h
+    if nearest is None:
+        return None
+    return _condition_from_wmo(nearest.get("weather_code"))
 
 
 # LocalSky's forecast snapshot carries Open-Meteo WMO weather codes per day.
@@ -118,9 +168,12 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
     def _tempest(self) -> dict[str, Any]:
         return (self.coordinator.data or {}).get("tempest") or {}
 
+    def _forecast(self) -> dict[str, Any]:
+        return (self.coordinator.data or {}).get("forecast") or {}
+
     @property
     def condition(self) -> str | None:
-        return _condition_from_snapshot(self._tempest())
+        return _condition_from_snapshot(self._tempest(), self._forecast())
 
     @property
     def native_temperature(self) -> float | None:

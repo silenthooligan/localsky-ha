@@ -131,7 +131,7 @@
       "fields": {
         "mode": {
           "name": "Mode",
-          "description": "Auto follows the engine, Skip force-skips, Run forces watering."
+          "description": "Auto follows the engine, Skip force-skips, Run forces watering through the hard freeze and watering-restriction guards."
         },
         "entry_id": {
           "name": "LocalSky entry",
@@ -149,7 +149,7 @@
         },
         "mode": {
           "name": "Mode",
-          "description": "Auto clears the override, Skip force-skips, Run forces watering."
+          "description": "Auto clears the override, Skip force-skips, Run forces this zone to water through the hard freeze and watering-restriction guards."
         },
         "entry_id": {
           "name": "LocalSky entry",

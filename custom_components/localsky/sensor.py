@@ -166,6 +166,11 @@ async def async_setup_entry(
     """
     coordinator: LocalSkyCoordinator = entry.runtime_data
     manifest = await coordinator.fetch_manifest()
+    # A weather-only install (no controller/zone) has no verdict/zone state to
+    # show, so we drop the irrigation-snapshot sensors. has_irrigation comes
+    # from /api/v1/info; a pre-1.13.0 server that omits it is treated as having
+    # irrigation (legacy behavior preserved).
+    has_irrigation = coordinator.has_irrigation
 
     if manifest is not None:
         # Manifest-driven path
@@ -173,6 +178,9 @@ async def async_setup_entry(
         seen_ids: set[str] = set()
         for desc in manifest.get("entities", []):
             if desc.get("platform") != "sensor":
+                continue
+            # Skip irrigation-derived sensors on a weather-only install.
+            if not has_irrigation and desc.get("snapshot") == "irrigation":
                 continue
             if desc["id"] in seen_ids:
                 continue
@@ -203,8 +211,15 @@ async def async_setup_entry(
     scalars: list[SensorEntity] = [
         LocalSkyScalarSensor(coordinator, entry, d) for d in WEATHER_SENSORS
     ]
-    scalars.append(LocalSkyScalarSensor(coordinator, entry, VERDICT_SENSOR))
+    # The verdict is an irrigation-snapshot field; only meaningful when there
+    # is irrigation. Skip it (and the per-zone sensor listener below) on a
+    # weather-only install so we don't surface a perpetually-empty verdict.
+    if has_irrigation:
+        scalars.append(LocalSkyScalarSensor(coordinator, entry, VERDICT_SENSOR))
     async_add_entities(scalars)
+
+    if not has_irrigation:
+        return
 
     seen: set[str] = set()
 

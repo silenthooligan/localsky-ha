@@ -28,8 +28,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ACTION_CLEAR_PAUSE_UNTIL,
+    ACTION_RUN,
     ACTION_SET_GLOBAL_OVERRIDE,
+    ACTION_SET_PAUSE_UNTIL,
     ACTION_SET_ZONE_OVERRIDE,
+    ACTION_STOP,
+    ACTION_STOP_ALL,
     DOMAIN,
     STICKY_OVERRIDE_MODES,
 )
@@ -152,24 +157,24 @@ def async_register_services(hass: HomeAssistant) -> None:
         await _dispatch(
             hass,
             call,
-            {"kind": "run", "zone": call.data[ATTR_ZONE], "seconds": call.data[ATTR_SECONDS]},
+            {"kind": ACTION_RUN, "zone": call.data[ATTR_ZONE], "seconds": call.data[ATTR_SECONDS]},
         )
 
     async def _stop_zone(call: ServiceCall) -> None:
         await _dispatch(
-            hass, call, {"kind": "stop", "zone": call.data[ATTR_ZONE]}
+            hass, call, {"kind": ACTION_STOP, "zone": call.data[ATTR_ZONE]}
         )
 
     async def _stop_all(call: ServiceCall) -> None:
-        await _dispatch(hass, call, {"kind": "stop_all"})
+        await _dispatch(hass, call, {"kind": ACTION_STOP_ALL})
 
     async def _pause(call: ServiceCall) -> None:
         hours: int = call.data.get(ATTR_HOURS, 24)
         epoch = int(time.time()) + hours * 3600
-        await _dispatch(hass, call, {"kind": "set_pause_until", "epoch": epoch})
+        await _dispatch(hass, call, {"kind": ACTION_SET_PAUSE_UNTIL, "epoch": epoch})
 
     async def _resume(call: ServiceCall) -> None:
-        await _dispatch(hass, call, {"kind": "clear_pause_until"})
+        await _dispatch(hass, call, {"kind": ACTION_CLEAR_PAUSE_UNTIL})
 
     async def _set_override(call: ServiceCall) -> None:
         await _dispatch(

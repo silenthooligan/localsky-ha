@@ -40,22 +40,35 @@ async def async_setup_entry(
 ) -> None:
     coordinator: LocalSkyCoordinator = entry.runtime_data
     manifest = await coordinator.fetch_manifest()
+    # "Any zone running" + per-zone running are irrigation-snapshot sensors;
+    # drop them on a weather-only install (no controller/zone). has_irrigation
+    # is from /api/v1/info; a pre-1.13.0 server that omits it counts as having
+    # irrigation (legacy behavior preserved).
+    has_irrigation = coordinator.has_irrigation
 
     if manifest is not None:
         # Manifest-driven path: every binary_sensor descriptor becomes
         # a ManifestBinarySensor. Adding a new diagnostic in LocalSky's
         # manifest.rs surfaces as a new HA binary_sensor with no HACS
         # code change.
-        entities: list[BinarySensorEntity] = [LocalSkyAnyZoneRunning(coordinator, entry)]
+        entities: list[BinarySensorEntity] = []
+        if has_irrigation:
+            entities.append(LocalSkyAnyZoneRunning(coordinator, entry))
         seen_ids: set[str] = set()
         for desc in manifest.get("entities", []):
             if desc.get("platform") != "binary_sensor":
+                continue
+            # Skip irrigation-derived binaries on a weather-only install.
+            if not has_irrigation and desc.get("snapshot") == "irrigation":
                 continue
             if desc["id"] in seen_ids:
                 continue
             seen_ids.add(desc["id"])
             entities.append(ManifestBinarySensor(coordinator, entry, desc))
         async_add_entities(entities)
+
+        if not has_irrigation:
+            return
 
         @callback
         def _on_zones(_slugs: set[str]) -> None:
@@ -69,6 +82,8 @@ async def async_setup_entry(
         return
 
     # ── Fallback for LocalSky < manifest support ──
+    if not has_irrigation:
+        return
     async_add_entities([LocalSkyAnyZoneRunning(coordinator, entry)])
 
     seen: set[str] = set()

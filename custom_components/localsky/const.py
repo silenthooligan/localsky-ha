@@ -34,8 +34,10 @@ DEFAULT_RUN_SECONDS = 600  # 10 min — matches LocalSky dashboard quick-run
 #     drives, and the stable `uuid` used for identity.
 #   - api 1.7.0  retired the run_sequence_now action (410 Gone).
 #   - api 1.12.0 added the sticky override actions (set_global_override /
-#     set_zone_override) and the IrrigationSnapshot.global_override field that
-#     the override service + select read. This is the binding floor.
+#     set_zone_override) the set_override / set_zone_override services dispatch,
+#     and the IrrigationSnapshot.global_override field. This is the binding
+#     floor. (Overrides are surfaced as services, not a select entity; this
+#     integration ships no select platform.)
 # service 0.7.0 is the release line that carries api 1.12.0+.
 MIN_SERVICE_VERSION = "0.7.0"
 MIN_API_VERSION = "1.12.0"
@@ -47,12 +49,17 @@ API_PREFIX = "/api/v1"
 
 # Service-action `kind` values dispatched to /api/v1/irrigation/action.
 # These match the tagged-enum `Action` in localsky/src/api/irrigation.rs.
+# All payloads in this integration reference these constants rather than inline
+# string literals so the dispatch contract lives in exactly one place.
 ACTION_RUN = "run"
 ACTION_STOP = "stop"
 ACTION_STOP_ALL = "stop_all"
 ACTION_SET_PAUSE_UNTIL = "set_pause_until"
 ACTION_CLEAR_PAUSE_UNTIL = "clear_pause_until"
 ACTION_SET_THRESHOLD = "set_threshold"
+# Valid core actions kept for contract parity but not yet surfaced as an HA
+# service/entity (Toggle drives the legacy input_boolean helpers;
+# SetOverrideTomorrow is the per-day predecessor of the sticky overrides below).
 ACTION_TOGGLE = "toggle"
 ACTION_SET_OVERRIDE_TOMORROW = "set_override_tomorrow"
 # Sticky overrides (LocalSky-native; persist until changed). A zone override

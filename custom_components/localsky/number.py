@@ -33,6 +33,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: LocalSkyCoordinator = entry.runtime_data
+    # Threshold sliders drive the skip-check rules, which only exist when there
+    # is irrigation to skip. A weather-only install has no controller/zone, so
+    # writing a threshold 400s on the core; skip the entities entirely.
+    if not coordinator.has_irrigation:
+        _LOGGER.debug(
+            "LocalSky reports no irrigation hardware; skipping threshold sliders"
+        )
+        return
     async_add_entities(
         [LocalSkyThresholdNumber(coordinator, entry, key) for key in THRESHOLD_KEYS]
     )

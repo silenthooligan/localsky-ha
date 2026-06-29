@@ -99,6 +99,27 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def poll_interval(self) -> int:
         return int(self._entry.options.get(OPT_POLL_INTERVAL, DEFAULT_POLL_INTERVAL))
 
+    @property
+    def has_irrigation(self) -> bool:
+        """True when LocalSky reports configured irrigation hardware.
+
+        Read from /api/v1/info (`has_irrigation`, added in api 1.13.0: any
+        controller or zone configured). A weather-only install reports False,
+        so the irrigation platforms (threshold sliders, the verdict sensor)
+        skip themselves and the user isn't handed phantom controls that error
+        on write.
+
+        A pre-1.13.0 server OMITS the field; there we can't tell weather-only
+        from irrigation, so we fall back to True (keep the legacy behavior of
+        surfacing irrigation entities) rather than wrongly hiding them. Only an
+        explicit `has_irrigation: false` from a new-enough server suppresses
+        them. Before fetch_info() has run (self.info is None) we also default
+        to True so platform setup never races ahead of the probe."""
+        info = self.info
+        if not info or "has_irrigation" not in info:
+            return True
+        return bool(info.get("has_irrigation"))
+
     def add_zone_listener(self, cb: Callable[[set[str]], None]) -> Callable[[], None]:
         """Register a callback fired with the new zone-slug set on changes."""
         self._zone_listeners.append(cb)
