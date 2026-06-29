@@ -288,7 +288,7 @@ class _LocalSkyBaseSensor(CoordinatorEntity[LocalSkyCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._entry = entry
         # F2: group the entity under a LocalSky sub-device by its snapshot.
-        self._attr_device_info = device_info_for(entry, coordinator.info, group)
+        self._attr_device_info = device_info_for(entry, coordinator, group)
 
 
 class LocalSkyScalarSensor(_LocalSkyBaseSensor):

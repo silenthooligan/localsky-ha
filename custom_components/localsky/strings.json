@@ -124,6 +124,38 @@
           "description": "Optional. Target a specific deployment."
         }
       }
+    },
+    "set_override": {
+      "name": "Set global override",
+      "description": "Set the sticky global override (Auto, Skip, or Run). It persists until changed.",
+      "fields": {
+        "mode": {
+          "name": "Mode",
+          "description": "Auto follows the engine, Skip force-skips, Run forces watering."
+        },
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific deployment."
+        }
+      }
+    },
+    "set_zone_override": {
+      "name": "Set zone override",
+      "description": "Set a sticky per-zone override (Auto, Skip, or Run). It beats the global override.",
+      "fields": {
+        "zone": {
+          "name": "Zone slug",
+          "description": "The zone identifier as configured in LocalSky."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "Auto clears the override, Skip force-skips, Run forces watering."
+        },
+        "entry_id": {
+          "name": "LocalSky entry",
+          "description": "Optional. Target a specific deployment."
+        }
+      }
     }
   }
 }

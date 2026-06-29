@@ -1,7 +1,7 @@
 """Binary sensors: per-zone running + LocalSky-driven diagnostics
-(ha_reachable, iu_suspended). Manifest-first (Phase 2 architecture);
-the legacy hardcoded zone-running path stays as a fallback for older
-LocalSky deployments that don't publish /sensors/manifest.
+(e.g. ha_reachable). Manifest-first (Phase 2 architecture); the legacy
+hardcoded zone-running path stays as a fallback for older LocalSky
+deployments that don't publish /sensors/manifest.
 """
 from __future__ import annotations
 
@@ -119,7 +119,7 @@ async def _async_refresh_manifest_binaries(
 
 class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorEntity):
     """Binary sensor from a manifest descriptor (per-zone running,
-    diagnostic ha_reachable / iu_suspended, etc.)."""
+    diagnostic ha_reachable, etc.)."""
 
     _attr_has_entity_name = True
 
@@ -140,7 +140,7 @@ class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorE
             self._attr_device_class = dc
         if icon := desc.get("icon"):
             self._attr_icon = icon
-        self._attr_device_info = device_info_for(entry, coordinator.info, self._snapshot)
+        self._attr_device_info = device_info_for(entry, coordinator, self._snapshot)
 
     @property
     def is_on(self) -> bool | None:
@@ -168,7 +168,7 @@ class _LocalSkyBaseBinary(CoordinatorEntity[LocalSkyCoordinator], BinarySensorEn
         group: str | None = None,
     ) -> None:
         super().__init__(coordinator)
-        self._attr_device_info = device_info_for(entry, coordinator.info, group)
+        self._attr_device_info = device_info_for(entry, coordinator, group)
 
 
 class LocalSkyZoneRunningBinary(_LocalSkyBaseBinary):

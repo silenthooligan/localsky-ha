@@ -80,7 +80,7 @@ class LocalSkyZoneSwitch(CoordinatorEntity[LocalSkyCoordinator], SwitchEntity):
         self._slug = slug
         self._attr_unique_id = f"{entry.entry_id}_{slug}_run"
         self._attr_name = f"{zone_name} - Run"
-        self._attr_device_info = device_info_for(entry, coordinator.info, "irrigation")
+        self._attr_device_info = device_info_for(entry, coordinator, "irrigation")
 
     @property
     def is_on(self) -> bool | None:

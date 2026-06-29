@@ -93,3 +93,66 @@ resume:
       example: "01F3K2..."
       selector:
         text:
+
+set_override:
+  name: Set global override
+  description: >-
+    Set the sticky global irrigation override. It persists until changed
+    (no nightly reset). Auto follows the engine verdict, Skip force-skips
+    every zone, and Run forces watering past the skip conditions. A per-zone
+    override (set_zone_override) beats this one.
+  fields:
+    mode:
+      name: Mode
+      description: Auto follows the engine, Skip force-skips, Run forces watering.
+      required: true
+      example: auto
+      selector:
+        select:
+          options:
+            - auto
+            - skip
+            - run
+    entry_id:
+      name: LocalSky entry
+      description: >-
+        Optional. Targets a specific LocalSky deployment by config-entry
+        id. Leave empty to fan out to every configured LocalSky.
+      example: "01F3K2..."
+      selector:
+        text:
+
+set_zone_override:
+  name: Set zone override
+  description: >-
+    Set a sticky per-zone irrigation override. It persists until changed
+    and beats the global override. Auto clears the zone override so it falls
+    back to the global override or the engine verdict, Skip force-skips the
+    zone, and Run forces it to water.
+  fields:
+    zone:
+      name: Zone slug
+      description: The zone identifier as configured in LocalSky (e.g. back_yard).
+      required: true
+      example: back_yard
+      selector:
+        text:
+    mode:
+      name: Mode
+      description: Auto clears the override, Skip force-skips, Run forces watering.
+      required: true
+      example: auto
+      selector:
+        select:
+          options:
+            - auto
+            - skip
+            - run
+    entry_id:
+      name: LocalSky entry
+      description: >-
+        Optional. Targets a specific LocalSky deployment by config-entry
+        id. Leave empty to fan out to every configured LocalSky.
+      example: "01F3K2..."
+      selector:
+        text:

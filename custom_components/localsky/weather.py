@@ -113,7 +113,7 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_weather"
-        self._attr_device_info = device_info_for(entry, coordinator.info, "tempest")
+        self._attr_device_info = device_info_for(entry, coordinator, "tempest")
 
     def _tempest(self) -> dict[str, Any]:
         return (self.coordinator.data or {}).get("tempest") or {}

@@ -25,8 +25,8 @@ Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 
 - **Instant.** State arrives over server-sent events, not polling. A zone starts watering and Home Assistant knows in under a second.
 - **Zero config.** LocalSky announces itself on the network; Home Assistant offers to add it. Pair, done.
-- **Grows with the server.** Entities are driven by LocalSky's own manifest. Add a zone or a sensor in LocalSky and it appears in Home Assistant, no integration update, no restart.
-- **Complete control.** Open and close zone valves, suspend irrigation, tune skip thresholds, and call `run_zone` / `stop_zone` / `stop_all` services from automations.
+- **Grows with the server.** Zones and sensors are driven by LocalSky's own manifest. Add a zone or a sensor in LocalSky and it appears in Home Assistant, no integration update, no restart. (The skip-threshold numbers are a fixed control set, matching LocalSky's threshold allow-list.)
+- **Complete control.** Open and close zone valves, suspend irrigation, tune skip thresholds, set a global or per-zone Auto/Skip/Run override, and call the irrigation services from automations.
 - **Secure by default.** Instances with authentication enabled pair with an API token, and a guided reauth flow handles rotation.
 - **Multi-instance.** Test bed and production, or one per property. Each instance is its own device.
 
@@ -39,7 +39,7 @@ Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 | Engine | Today's run/skip verdict and reason, days since rain, ET0, water level, heat multiplier, rain probability |
 | Per zone | Soil moisture, soil temperature, EC, probe battery, soil bucket, planned run, minutes run today, running state, and a valve |
 | Controls | Irrigation suspend switch, rain/wind/freeze threshold numbers |
-| Services | `localsky.run_zone`, `localsky.stop_zone`, `localsky.stop_all` |
+| Services | `localsky.run_zone`, `localsky.stop_zone`, `localsky.stop_all`, `localsky.pause`, `localsky.resume`, `localsky.set_override`, `localsky.set_zone_override` |
 
 ## Install
 

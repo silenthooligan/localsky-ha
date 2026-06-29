@@ -88,7 +88,7 @@ class LocalSkyZoneValve(CoordinatorEntity[LocalSkyCoordinator], ValveEntity):
         self._slug = slug
         self._attr_unique_id = f"{entry.entry_id}_{slug}_valve"
         self._attr_name = zone_name
-        self._attr_device_info = device_info_for(entry, coordinator.info, "irrigation")
+        self._attr_device_info = device_info_for(entry, coordinator, "irrigation")
 
     def _zone(self) -> dict[str, Any] | None:
         irrigation = (self.coordinator.data or {}).get("irrigation") or {}

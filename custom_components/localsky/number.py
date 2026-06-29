@@ -60,7 +60,7 @@ class LocalSkyThresholdNumber(CoordinatorEntity[LocalSkyCoordinator], NumberEnti
         self._attr_native_max_value = max_v
         self._attr_native_step = step
         self._attr_native_unit_of_measurement = unit
-        self._attr_device_info = device_info_for(entry, coordinator.info, "irrigation")
+        self._attr_device_info = device_info_for(entry, coordinator, "irrigation")
 
     @property
     def native_value(self) -> float | None:

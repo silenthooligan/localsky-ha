@@ -24,11 +24,21 @@ DEFAULT_USE_SSE = True
 DEFAULT_POLL_INTERVAL = 30
 DEFAULT_RUN_SECONDS = 600  # 10 min — matches LocalSky dashboard quick-run
 
-# Minimum LocalSky service version the integration is built against.
-# Used by /api/v1/info probe at setup time; we warn on lower versions
-# but don't refuse.
-MIN_SERVICE_VERSION = "0.2.0"
-MIN_API_VERSION = "1.0.0"
+# Minimum LocalSky service + API contract this integration actually requires.
+# Checked against /api/v1/info at pairing time; an instance below the floor is
+# refused with a clear "too old" error rather than paired into broken behavior.
+#
+# The floor tracks the real contract dependencies, not the oldest LocalSky that
+# ever existed:
+#   - api 1.6.0  added auth_required + the /api/v1/auth family the config flow
+#     drives, and the stable `uuid` used for identity.
+#   - api 1.7.0  retired the run_sequence_now action (410 Gone).
+#   - api 1.12.0 added the sticky override actions (set_global_override /
+#     set_zone_override) and the IrrigationSnapshot.global_override field that
+#     the override service + select read. This is the binding floor.
+# service 0.7.0 is the release line that carries api 1.12.0+.
+MIN_SERVICE_VERSION = "0.7.0"
+MIN_API_VERSION = "1.12.0"
 
 # Canonical API prefix on the LocalSky instance. Some deployments
 # mount both /api/* (legacy) and /api/v1/* (canonical with /info).
@@ -45,7 +55,11 @@ ACTION_CLEAR_PAUSE_UNTIL = "clear_pause_until"
 ACTION_SET_THRESHOLD = "set_threshold"
 ACTION_TOGGLE = "toggle"
 ACTION_SET_OVERRIDE_TOMORROW = "set_override_tomorrow"
-ACTION_RUN_SEQUENCE_NOW = "run_sequence_now"
+# Sticky overrides (LocalSky-native; persist until changed). A zone override
+# beats the global one; "auto" clears it back to the engine verdict. Dispatched
+# by the set_override / set_zone_override services.
+ACTION_SET_GLOBAL_OVERRIDE = "set_global_override"
+ACTION_SET_ZONE_OVERRIDE = "set_zone_override"
 
 # Threshold slider keys understood by LocalSky's SetThreshold action.
 THRESHOLD_KEYS = ("max_wind_mph", "min_temp_f", "rain_skip_in")
@@ -59,3 +73,9 @@ THRESHOLD_LIMITS: dict[str, tuple[float, float, float, str | None]] = {
 
 # Permitted slugs for irrigation_override_tomorrow.
 OVERRIDE_OPTIONS = ("none", "skip", "run")
+
+# Permitted modes for the sticky global/per-zone override actions. "auto"
+# follows the engine verdict, "skip" force-skips, "run" forces watering past
+# the skip conditions. Mirrors the allow-list in the core's
+# SetGlobalOverride / SetZoneOverride dispatch.
+STICKY_OVERRIDE_MODES = ("auto", "skip", "run")
