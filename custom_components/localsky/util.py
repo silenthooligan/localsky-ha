@@ -1,7 +1,7 @@
 """Small helpers shared across the LocalSky integration."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -10,6 +10,33 @@ from .const import DOMAIN
 
 if TYPE_CHECKING:
     from .coordinator import LocalSkyCoordinator
+
+
+def descriptor_is_irrigation_only(desc: dict[str, Any]) -> bool:
+    """True when a manifest descriptor should be DROPPED on a weather-only install.
+
+    Servers on manifest schema >= 1.3 gate the genuinely irrigation-only
+    entities themselves, but 0.7.0 servers blanket-publish everything riding
+    snapshot="irrigation". That snapshot ALSO carries entities that are fully
+    meaningful without irrigation hardware: the forecast-block scalars (ET0,
+    days-since-rain, rain-tomorrow probability, wind-gust forecast, forecast
+    source) and the ha_reachable connectivity binary. Dropping by snapshot
+    name alone stripped all of those from weather-only installs, the exact
+    persona has_irrigation was added for. Keep only descriptors that are
+    REALLY irrigation-bound: irrigation snapshot, not forecast-rooted, not
+    the connectivity sensor, and not explicitly grouped elsewhere.
+    """
+    if desc.get("snapshot") != "irrigation":
+        return False
+    if desc.get("id") == "ha_reachable":
+        return False
+    group = desc.get("group")
+    if group and group != "irrigation":
+        return False
+    path = desc.get("path") or []
+    if path and path[0] == "forecast":
+        return False
+    return True
 
 
 def format_base_url(host: str, port: int, use_https: bool = False) -> str:

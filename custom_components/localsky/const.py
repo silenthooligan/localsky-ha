@@ -42,6 +42,16 @@ DEFAULT_RUN_SECONDS = 600  # 10 min — matches LocalSky dashboard quick-run
 MIN_SERVICE_VERSION = "0.7.0"
 MIN_API_VERSION = "1.12.0"
 
+# CEILINGS (the other half of the documented major-minor contract). A server
+# whose /api/v1 MAJOR exceeds this has shipped a breaking wire change this
+# integration predates: setup fails with a clear "update the integration"
+# error instead of pairing into silently-broken entities. A manifest whose
+# schema MAJOR exceeds SUPPORTED_MANIFEST_MAJOR is ignored and the integration
+# falls back to its hardcoded entity list (exactly what the manifest
+# schema_version doc promises clients will do).
+SUPPORTED_API_MAJOR = 1
+SUPPORTED_MANIFEST_MAJOR = 1
+
 # Canonical API prefix on the LocalSky instance. Some deployments
 # mount both /api/* (legacy) and /api/v1/* (canonical with /info).
 # New HACS installs target /api/v1.

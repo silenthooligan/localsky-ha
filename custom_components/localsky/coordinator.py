@@ -34,6 +34,7 @@ from .const import (
     DOMAIN,
     OPT_POLL_INTERVAL,
     OPT_USE_SSE,
+    SUPPORTED_MANIFEST_MAJOR,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -168,7 +169,23 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     )
                     return None
                 r.raise_for_status()
-                self.manifest = await r.json()
+                manifest = await r.json()
+                # Manifest schema-major CEILING: a major bump means the
+                # descriptor shape broke. The schema_version doc's contract is
+                # that clients fall back to their hardcoded entity list rather
+                # than mis-render descriptors they predate. Parse defensively;
+                # a missing/garbled version is treated as compatible.
+                schema = str(manifest.get("schema_version", ""))
+                major = schema.split(".", 1)[0]
+                if major.isdigit() and int(major) > SUPPORTED_MANIFEST_MAJOR:
+                    _LOGGER.warning(
+                        "LocalSky at %s publishes manifest schema %s, newer than "
+                        "this integration supports (%s.x); using the fallback "
+                        "entity list. Update the LocalSky integration.",
+                        self._base_url, schema, SUPPORTED_MANIFEST_MAJOR,
+                    )
+                    return None
+                self.manifest = manifest
                 return self.manifest
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             _LOGGER.warning(

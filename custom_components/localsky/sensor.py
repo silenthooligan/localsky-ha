@@ -23,7 +23,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
-from .util import device_info_for
+from .util import descriptor_is_irrigation_only, device_info_for
 from .coordinator import LocalSkyCoordinator
 
 
@@ -179,8 +179,13 @@ async def async_setup_entry(
         for desc in manifest.get("entities", []):
             if desc.get("platform") != "sensor":
                 continue
-            # Skip irrigation-derived sensors on a weather-only install.
-            if not has_irrigation and desc.get("snapshot") == "irrigation":
+            # Weather-only install: drop only the GENUINELY irrigation-bound
+            # descriptors. The irrigation snapshot also carries the forecast
+            # scalars (ET0, days-since-rain, rain probability, gust forecast,
+            # forecast source), which are fully meaningful without a
+            # controller; the old blanket snapshot=="irrigation" drop stripped
+            # them all from exactly the weather-only persona.
+            if not has_irrigation and descriptor_is_irrigation_only(desc):
                 continue
             if desc["id"] in seen_ids:
                 continue
@@ -390,7 +395,14 @@ class ManifestSensor(_LocalSkyBaseSensor):
         entry: ConfigEntry,
         desc: dict[str, Any],
     ) -> None:
-        super().__init__(coordinator, entry, group=desc.get("snapshot"))
+        # Prefer the server's explicit sub-device hint (manifest schema 1.3):
+        # the forecast scalars ride snapshot="irrigation" for path reasons but
+        # belong under the Forecast device; the hint is what un-strands them
+        # (before this the Forecast device existed in _GROUP_LABELS but no
+        # entity ever landed there).
+        super().__init__(
+            coordinator, entry, group=desc.get("group") or desc.get("snapshot")
+        )
         self._desc = desc
         self._snapshot = desc.get("snapshot", "")
         self._path: tuple[str, ...] = tuple(desc.get("path", []))

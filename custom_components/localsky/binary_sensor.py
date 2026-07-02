@@ -18,7 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import LocalSkyCoordinator
-from .util import device_info_for
+from .util import descriptor_is_irrigation_only, device_info_for
 
 
 def _walk(data: Any, path: tuple[str, ...]) -> Any:
@@ -58,8 +58,12 @@ async def async_setup_entry(
         for desc in manifest.get("entities", []):
             if desc.get("platform") != "binary_sensor":
                 continue
-            # Skip irrigation-derived binaries on a weather-only install.
-            if not has_irrigation and desc.get("snapshot") == "irrigation":
+            # Weather-only install: drop only the GENUINELY irrigation-bound
+            # binaries. ha_reachable rides snapshot="irrigation" but is the
+            # connectivity sensor every HA-integrated install wants; the old
+            # blanket snapshot check dropped it (weather-only got ZERO
+            # binaries, not even connectivity).
+            if not has_irrigation and descriptor_is_irrigation_only(desc):
                 continue
             if desc["id"] in seen_ids:
                 continue
@@ -155,7 +159,11 @@ class ManifestBinarySensor(CoordinatorEntity[LocalSkyCoordinator], BinarySensorE
             self._attr_device_class = dc
         if icon := desc.get("icon"):
             self._attr_icon = icon
-        self._attr_device_info = device_info_for(entry, coordinator, self._snapshot)
+        # Prefer the server's explicit sub-device hint (manifest schema 1.3)
+        # over the snapshot-derived grouping, matching ManifestSensor.
+        self._attr_device_info = device_info_for(
+            entry, coordinator, desc.get("group") or self._snapshot
+        )
 
     @property
     def is_on(self) -> bool | None:

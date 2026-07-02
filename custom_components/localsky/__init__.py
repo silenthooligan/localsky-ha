@@ -10,10 +10,17 @@ import logging
 
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import CONF_HOST, CONF_PORT, CONF_USE_HTTPS, DEFAULT_PORT, DOMAIN
+from .const import (
+    CONF_HOST,
+    CONF_PORT,
+    CONF_USE_HTTPS,
+    DEFAULT_PORT,
+    DOMAIN,
+    SUPPORTED_API_MAJOR,
+)
 from .coordinator import LocalSkyConfigEntry, LocalSkyCoordinator
 from .services import async_register_services, async_unregister_services
 from .util import format_base_url
@@ -44,6 +51,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalSkyConfigEntry) -> 
         await coordinator.fetch_info()
     except Exception as err:  # noqa: BLE001 - aiohttp + timeouts + json parse
         raise ConfigEntryNotReady(f"Cannot reach LocalSky at {base_url}: {err}") from err
+
+    # API-major CEILING (the other half of the documented major-minor
+    # contract; the config flow already enforces the MIN_* floor at pairing
+    # time). A server that bumped its /api/v1 MAJOR has shipped a breaking
+    # wire change this integration predates; failing setup with a clear
+    # "update the integration" beats pairing into silently-broken entities.
+    # Parse defensively: a missing/garbled api_version (or a pre-1.6 server)
+    # falls through to the legacy behavior rather than blocking setup.
+    api_version = str((coordinator.info or {}).get("api_version", ""))
+    major_str = api_version.split(".", 1)[0]
+    if major_str.isdigit() and int(major_str) > SUPPORTED_API_MAJOR:
+        raise ConfigEntryError(
+            f"LocalSky at {base_url} speaks API v{api_version}, newer than this "
+            f"integration supports (v{SUPPORTED_API_MAJOR}.x). Update the "
+            "LocalSky integration."
+        )
 
     await coordinator.async_start()
 
