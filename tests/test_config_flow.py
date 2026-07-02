@@ -27,7 +27,7 @@ def _zeroconf_info(props: dict | None = None) -> ZeroconfServiceInfo:
         properties=props
         or {
             "uuid": INFO_OPEN["uuid"],
-            "version": "0.2.0",
+            "version": "0.7.0",
             "auth": "disabled",
         },
     )
