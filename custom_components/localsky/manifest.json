@@ -14,9 +14,7 @@
   "custom_components.localsky"
  ],
  "quality_scale": "silver",
- "requirements": [
-  "aiohttp>=3.9.0"
- ],
+ "requirements": [],
  "version": "0.7.9",
  "zeroconf": [
   "_localsky._tcp.local."
