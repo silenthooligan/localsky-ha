@@ -43,13 +43,11 @@ Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 
 ## Install
 
+LocalSky is in the HACS default store: open **HACS**, search for **LocalSky**, install, restart Home Assistant.
+
 **One click** (opens your own Home Assistant):
 
-[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=silenthooligan&repository=localsky-ha&category=integration)
-
-Install **LocalSky** when HACS opens, then restart Home Assistant.
-
-**Or by hand**: HACS, three-dot menu, **Custom repositories**, add `https://github.com/silenthooligan/localsky-ha` as category **Integration**, install, restart. (Default-catalog inclusion is pending review; until then the repository adds as a custom one either way.)
+[![Open your Home Assistant instance and show LocalSky in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=silenthooligan&repository=localsky-ha&category=integration)
 
 ## Pair
 
