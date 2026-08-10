@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
@@ -83,6 +85,53 @@ _WEATHER_FALLBACK_NAME = "LocalSky Weather"
 _WEATHER_FALLBACK_MODEL = "Weather source"
 
 
+# Source ids LocalSky reports verbatim (they are config ids, not display
+# names) mapped to how the vendor writes them. Anything absent falls through
+# to a generic prettifier, so a user's own source id ("back_yard_station")
+# still reads as words rather than a slug.
+_SOURCE_DISPLAY: dict[str, str] = {
+    "open_meteo": "Open-Meteo",
+    "met_norway": "Met.no",
+    "nws": "NWS",
+    "noaa_mrms": "NOAA MRMS",
+    "pirate_weather": "Pirate Weather",
+    "openweather": "OpenWeather",
+    "weatherkit": "WeatherKit",
+    "ambient_weather": "Ambient Weather",
+    "ecowitt_gw_poll": "Ecowitt",
+    "ecowitt_local": "Ecowitt",
+    "davis_wll": "Davis WeatherLink",
+    "tempest_udp": "Tempest",
+    "tempest_ws": "Tempest",
+    "lacrosse": "La Crosse",
+    "tuya_cloud": "Tuya",
+    "yolink": "YoLink",
+    "netatmo": "Netatmo",
+    "synoptic": "Synoptic",
+    "blitzortung": "Blitzortung",
+}
+
+
+def prettify_source_label(label: str) -> str:
+    """A source id or label as a human would write it.
+
+    LocalSky's `source_label` is whichever source currently owns current
+    conditions, and for non-station sources that is the raw config id
+    ("open_meteo"). Rendering that straight into a device name reads like a
+    database key, so map the known ids and word-case the rest. Labels that
+    already look like names ("Tempest", "Ecowitt") pass through untouched.
+    """
+    label = label.strip()
+    if not label:
+        return label
+    known = _SOURCE_DISPLAY.get(label.lower())
+    if known:
+        return known
+    if "_" in label or "-" in label:
+        return " ".join(w.capitalize() for w in label.replace("-", "_").split("_") if w)
+    return label
+
+
 def _weather_device_label(coordinator: "LocalSkyCoordinator | None") -> tuple[str, str]:
     """(name, model) for the tempest-snapshot sub-device, from the live source.
 
@@ -91,11 +140,18 @@ def _weather_device_label(coordinator: "LocalSkyCoordinator | None") -> tuple[st
     source's config id, "Demo", ...). We surface that so the HA device matches
     the hardware the user actually runs, falling back to a neutral name before
     the first reading arrives or when the field is absent.
+
+    The label follows whoever owns the air temperature, which can change: a
+    restart leaves a live station's store empty for up to a minute, so a cloud
+    source briefly owns conditions. Registering during that window used to
+    freeze the wrong name onto the device forever (and any sensor added later
+    inherited it in its entity_id). `async_sync_weather_device_name` re-syncs
+    the name whenever the owner changes.
     """
     snapshot = (getattr(coordinator, "data", None) or {}).get("tempest") or {}
     label = snapshot.get("source_label")
     if isinstance(label, str) and label.strip():
-        label = label.strip()
+        label = prettify_source_label(label)
         return f"LocalSky {label}", f"{label} weather source"
     return _WEATHER_FALLBACK_NAME, _WEATHER_FALLBACK_MODEL
 
@@ -148,3 +204,37 @@ def device_info_for(
         via_device=hub,
         configuration_url=base_url,
     )
+
+
+@callback
+def async_sync_weather_device_name(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: "LocalSkyCoordinator | None",
+) -> None:
+    """Keep the weather sub-device named after the source that owns conditions.
+
+    DeviceInfo is only read when an entity registers, so the name captured at
+    setup time sticks even after the owning source changes. That made a
+    restart race visible forever: a live station's store is empty for up to a
+    minute after LocalSky restarts, the cloud fill owns conditions during that
+    gap, and the device kept that source's name (and any sensor added later
+    picked it up in its entity_id). Re-sync on every coordinator update so the
+    name follows the real owner.
+
+    A user-set name (`name_by_user`) always wins and is never touched.
+    """
+    name, model = _weather_device_label(coordinator)
+    if name == _WEATHER_FALLBACK_NAME:
+        # No reading yet: leave whatever is registered rather than churning
+        # the device back to the neutral placeholder on a transient gap.
+        return
+    registry = dr.async_get(hass)
+    device = registry.async_get_device(
+        identifiers={(DOMAIN, f"{entry.entry_id}_tempest")}
+    )
+    if device is None or device.name_by_user:
+        return
+    if device.name == name and device.model == model:
+        return
+    registry.async_update_device(device.id, name=name, model=model)

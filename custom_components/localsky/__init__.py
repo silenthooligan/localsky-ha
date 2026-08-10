@@ -23,7 +23,7 @@ from .const import (
 )
 from .coordinator import LocalSkyConfigEntry, LocalSkyCoordinator
 from .services import async_register_services, async_unregister_services
-from .util import format_base_url
+from .util import async_sync_weather_device_name, format_base_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +79,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalSkyConfigEntry) -> 
     # Reload entry when options change so the coordinator picks up new
     # SSE/poll preferences without a manual restart.
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
+
+    # Keep the weather sub-device named after the source that actually owns
+    # current conditions. DeviceInfo is only consulted when an entity
+    # registers, so without this the name captured during setup sticks even
+    # after the owner changes: a LocalSky restart leaves a live station's
+    # store empty for up to a minute, and a device registered in that window
+    # kept the cloud fill's name permanently.
+    entry.async_on_unload(
+        coordinator.async_add_listener(
+            lambda: async_sync_weather_device_name(hass, entry, coordinator)
+        )
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
