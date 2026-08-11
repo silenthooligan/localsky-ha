@@ -2,8 +2,8 @@
 
 Drops the need for a separate WeatherFlow integration in HA when
 LocalSky is the source-of-truth (LocalSky already ingests Tempest UDP
-broadcasts directly). Daily forecast pulled from the forecast snapshot
-when present.
+broadcasts directly). Daily and hourly forecasts are pulled from the
+forecast snapshot when present.
 """
 from __future__ import annotations
 
@@ -25,7 +25,13 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.sun import is_up
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+# How many hours of the snapshot's hourly block to publish. LocalSky keeps
+# well over a hundred entries (NWS returns ~156); HA's forecast consumers and
+# the recorder only ever want the near term, so cap at two days.
+_HOURLY_LIMIT = 48
 
 from .const import DOMAIN
 from .coordinator import LocalSkyCoordinator
@@ -157,7 +163,9 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
     _attr_native_pressure_unit = UnitOfPressure.INHG
     _attr_native_wind_speed_unit = UnitOfSpeed.MILES_PER_HOUR
     _attr_native_precipitation_unit = UnitOfPrecipitationDepth.INCHES
-    _attr_supported_features = WeatherEntityFeature.FORECAST_DAILY
+    _attr_supported_features = (
+        WeatherEntityFeature.FORECAST_DAILY | WeatherEntityFeature.FORECAST_HOURLY
+    )
 
     def __init__(self, coordinator: LocalSkyCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
@@ -253,6 +261,69 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
                 )
             )
         return out or None
+
+    async def async_forecast_hourly(self) -> list[Forecast] | None:
+        """Publish the snapshot's hourly block.
+
+        The data was already being fetched and cached for
+        `_condition_from_nearest_hour`; this exposes it so consumers can ask
+        what the weather will be at a given hour instead of only what it is
+        now. That matters most for providers with real convective forecasting:
+        NWS marks thunderstorm hours (WMO 95 via its shortForecast text) and
+        carries a per-hour probability of precipitation, neither of which is
+        reachable through a daily summary.
+        """
+        forecast = self._forecast()
+        hours = forecast.get("hourly") or []
+        if not isinstance(hours, list):
+            return None
+        out: list[Forecast] = []
+        # Cap on USABLE entries rather than slicing the raw list first: a
+        # malformed entry near the front would otherwise consume one of the
+        # published hours and silently shorten the forecast.
+        for h in hours:
+            if len(out) >= _HOURLY_LIMIT:
+                break
+            if not isinstance(h, dict):
+                continue
+            ts = h.get("time_epoch")
+            if not isinstance(ts, (int, float)):
+                continue
+            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+            out.append(
+                Forecast(
+                    datetime=dt.isoformat(),
+                    condition=self._hourly_condition(h.get("weather_code"), dt),
+                    native_temperature=_as_float(h.get("temp_f")),
+                    native_apparent_temperature=_as_float(h.get("apparent_temp_f")),
+                    native_precipitation=_as_float(h.get("precip_in")),
+                    precipitation_probability=_as_int(h.get("precip_probability")),
+                    native_wind_speed=_as_float(h.get("wind_mph")),
+                    wind_bearing=_as_float(h.get("wind_dir_deg")),
+                    humidity=_as_int(h.get("humidity_pct")),
+                    cloud_coverage=_as_int(h.get("cloud_cover_pct")),
+                )
+            )
+        return out or None
+
+    def _hourly_condition(self, code: Any, dt: datetime) -> str | None:
+        """WMO code to HA condition, night-aware.
+
+        `_WMO_TO_CONDITION` maps clear sky to "sunny" because it was written
+        for the daily forecast, which is a daytime summary. An hourly forecast
+        covers actual nights, so a clear 02:00 has to read "clear-night" or the
+        frontend paints a sun in the dark. Only the clear-sky code is
+        ambiguous; every other condition looks the same at any hour.
+        """
+        condition = _condition_from_wmo(code)
+        if condition != "sunny":
+            return condition
+        try:
+            if not is_up(self.hass, dt):
+                return "clear-night"
+        except Exception:  # noqa: BLE001 - sun helper needs configured lat/lon
+            _LOGGER.debug("sun position unavailable for %s; leaving 'sunny'", dt)
+        return condition
 
 
 def _as_float(v: Any) -> float | None:
