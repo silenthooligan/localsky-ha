@@ -40,6 +40,7 @@ from .const import (
     OPT_DEFAULT_RUN_SECONDS,
     OPT_POLL_INTERVAL,
     OPT_USE_SSE,
+    SUPPORTED_API_MAJOR,
 )
 from .util import format_base_url
 
@@ -106,12 +107,17 @@ def _version_ok(reported: Any, minimum: str) -> bool:
 
 def _info_error(info: dict[str, Any]) -> str | None:
     """Compatibility gate shared by every pairing path."""
-    if info.get("service") != "localsky":
+    if not isinstance(info, dict) or info.get("service") != "localsky":
         return "not_localsky"
     if not _version_ok(info.get("service_version"), MIN_SERVICE_VERSION):
         return "service_too_old"
     if not _version_ok(info.get("api_version"), MIN_API_VERSION):
         return "api_too_old"
+    # Match setup's supported-major ceiling before discovery can move an
+    # existing entry. Reuse the existing incompatible-endpoint error text.
+    api_major = info["api_version"].split(".", 1)[0]
+    if not api_major.isdigit() or int(api_major) > SUPPORTED_API_MAJOR:
+        return "not_localsky"
     return None
 
 
@@ -139,16 +145,18 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         Entries created by pre-0.6 flows are keyed host:port, so the
         uuid dedupe above never matches them and discovery keeps
-        offering an already-configured instance as new. Match on
-        host+port instead and rewrite the entry's unique_id in place;
+        offering an already-configured instance as new. Match only a
+        legacy identity at the verified endpoint and rewrite it in place;
         everything else about the entry (and therefore every entity id)
         stays untouched.
         """
         for entry in self._async_current_entries(include_ignore=False):
-            if entry.unique_id == unique_id:
-                continue
             if (
-                entry.data.get(CONF_HOST) == self._host
+                entry.unique_id in (None, f"{self._host}:{self._port}")
+                and entry.unique_id != unique_id
+                and bool(entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS))
+                == self._use_https
+                and entry.data.get(CONF_HOST) == self._host
                 and entry.data.get(CONF_PORT, DEFAULT_PORT) == self._port
             ):
                 self.hass.config_entries.async_update_entry(
@@ -166,6 +174,15 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Prefer the stable instance uuid; fall back to host:port."""
         unique_id = self._info.get("uuid") or f"{self._host}:{self._port}"
         await self.async_set_unique_id(str(unique_id))
+        # Discovery verifies HTTP, not an owner's configured TLS proxy. Check
+        # again after the probe in case the saved entry changed while waiting.
+        for entry in self._async_current_entries(include_ignore=False):
+            if (
+                entry.unique_id == str(unique_id)
+                and entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+                and not self._use_https
+            ):
+                raise AbortFlow("already_configured")
         self._abort_if_unique_id_configured(
             updates={CONF_HOST: self._host, CONF_PORT: self._port}
         )
@@ -275,24 +292,31 @@ class LocalSkyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._port = int(port)
         self._use_https = False
 
-        # Dedupe on the announced uuid before any network round-trip.
-        if uuid := props.get("uuid"):
-            await self.async_set_unique_id(str(uuid))
-            self._abort_if_unique_id_configured(
-                updates={CONF_HOST: self._host, CONF_PORT: self._port}
-            )
-            if self._adopt_legacy_entry(str(uuid)):
-                return self.async_abort(reason="already_configured")
+        announced_uuid = str(props["uuid"]) if props.get("uuid") else None
+        # An unchanged entry can dedupe without any write or network request.
+        # HTTP discovery must also leave an owner's HTTPS endpoint untouched.
+        # Every endpoint move and legacy adoption below requires HTTP proof.
+        if announced_uuid:
+            for entry in self._async_current_entries(include_ignore=False):
+                if entry.unique_id == announced_uuid and (
+                    entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
+                    or (
+                        entry.data.get(CONF_HOST) == self._host
+                        and entry.data.get(CONF_PORT, DEFAULT_PORT) == self._port
+                    )
+                ):
+                    return self.async_abort(reason="already_configured")
 
         session = async_get_clientsession(self.hass)
         try:
             self._info = await _probe(session, self._host, self._port, False)
-        except (aiohttp.ClientError, TimeoutError, OSError):
+        except (aiohttp.ClientError, TimeoutError, OSError, ValueError):
             return self.async_abort(reason="cannot_connect")
         if _info_error(self._info) is not None:
             return self.async_abort(reason="not_localsky")
-        if not props.get("uuid"):
-            await self._set_unique_id_from_info()
+        if announced_uuid and self._info.get("uuid") != announced_uuid:
+            return self.async_abort(reason="not_localsky")
+        await self._set_unique_id_from_info()
 
         self.context["title_placeholders"] = {"host": self._host}
         return await self.async_step_zeroconf_confirm()

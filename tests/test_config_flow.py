@@ -16,16 +16,17 @@ from .conftest import INFO_AUTH, INFO_OPEN, INFO_TOO_OLD
 USER_INPUT = {"host": "192.0.2.10", "port": 8090, "use_https": False}
 
 
-def _zeroconf_info(props: dict | None = None) -> ZeroconfServiceInfo:
+def _zeroconf_info(
+    props: dict | None = None, *, host: str = "192.0.2.10", port: int = 8090
+) -> ZeroconfServiceInfo:
     return ZeroconfServiceInfo(
-        ip_address=ip_address("192.0.2.10"),
-        ip_addresses=[ip_address("192.0.2.10")],
+        ip_address=ip_address(host),
+        ip_addresses=[ip_address(host)],
         hostname="localsky.local.",
         name="LocalSky (localsky)._localsky._tcp.local.",
-        port=8090,
+        port=port,
         type="_localsky._tcp.local.",
-        properties=props
-        or {
+        properties=props if props is not None else {
             "uuid": INFO_OPEN["uuid"],
             "version": "0.7.0",
             "auth": "disabled",
@@ -147,20 +148,203 @@ async def test_zeroconf_flow(hass: HomeAssistant) -> None:
 
 @pytest.mark.asyncio
 async def test_zeroconf_dedupes_on_uuid(hass: HomeAssistant) -> None:
-    """A second discovery of the same uuid aborts."""
-    MockConfigEntry(
+    """An unchanged known endpoint dedupes without a probe or mutation."""
+    entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id=INFO_OPEN["uuid"],
         data=USER_INPUT,
-    ).add_to_hass(hass)
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_ZEROCONF},
-        data=_zeroconf_info(),
     )
+    entry.add_to_hass(hass)
+
+    with patch("custom_components.localsky.config_flow._probe") as probe:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(),
+        )
+    probe.assert_not_called()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+    assert entry.data == USER_INPUT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "reported_info",
+    [
+        {**INFO_OPEN, "service": "other"},
+        {**INFO_OPEN, "api_version": "0.0.0"},
+        {**INFO_OPEN, "api_version": "3.0.0"},
+        {**INFO_OPEN, "api_version": "99.0.0"},
+        {**INFO_OPEN, "uuid": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"},
+        {**INFO_OPEN, "uuid": None},
+        [],
+    ],
+    ids=[
+        "wrong-service", "old-api", "api-3", "api-99",
+        "uuid-mismatch", "missing-uuid", "not-an-object",
+    ],
+)
+async def test_zeroconf_rejected_move_preserves_entry(
+    hass: HomeAssistant, reported_info
+) -> None:
+    """TXT identity alone cannot redirect an existing entry or its token."""
+    original = {**USER_INPUT, CONF_API_TOKEN: "lsk_saved_fixture"}
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=INFO_OPEN["uuid"], data=original
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(return_value=reported_info),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(host="192.0.2.20", port=18090),
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "not_localsky"
+    assert entry.data == original
+    assert entry.unique_id == INFO_OPEN["uuid"]
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("probe_error", [TimeoutError, ValueError])
+async def test_zeroconf_unreachable_or_invalid_json_move_preserves_entry(
+    hass: HomeAssistant, probe_error
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=INFO_OPEN["uuid"], data=USER_INPUT
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(side_effect=probe_error),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(port=18090),
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_connect"
+    assert entry.data == USER_INPUT
+    assert entry.unique_id == INFO_OPEN["uuid"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_version", ["1.13.0", "2.0.0"])
+async def test_zeroconf_verified_move_updates_only_endpoint(
+    hass: HomeAssistant, api_version: str,
+) -> None:
+    original = {**USER_INPUT, CONF_API_TOKEN: "lsk_saved_fixture"}
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=INFO_OPEN["uuid"], data=original
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(return_value={**INFO_OPEN, "api_version": api_version}),
+    ) as probe:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(host="192.0.2.20", port=18090),
+        )
+    # This probe has no token argument; it only reads the public info endpoint.
+    assert probe.await_args.args[1:] == ("192.0.2.20", 18090, False)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data == {**original, "host": "192.0.2.20", "port": 18090}
+    assert entry.unique_id == INFO_OPEN["uuid"]
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+@pytest.mark.asyncio
+async def test_zeroconf_keeps_configured_https_endpoint(hass: HomeAssistant) -> None:
+    original = {
+        **USER_INPUT,
+        "host": "localsky.example.test",
+        "port": 443,
+        "use_https": True,
+        CONF_API_TOKEN: "lsk_saved_fixture",
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=INFO_OPEN["uuid"], data=original
+    )
+    entry.add_to_hass(hass)
+    with patch("custom_components.localsky.config_flow._probe") as probe:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(port=18090),
+        )
+    probe.assert_not_called()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data == original
+    assert entry.unique_id == INFO_OPEN["uuid"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy_id", ["192.0.2.10:8090", None])
+async def test_zeroconf_uuid_mismatch_cannot_adopt_legacy_entry(
+    hass: HomeAssistant, legacy_id: str | None
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=legacy_id, data=USER_INPUT)
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(return_value={**INFO_OPEN, "uuid": "different-instance"}),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(),
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "not_localsky"
+    assert entry.data == USER_INPUT
+    assert entry.unique_id == legacy_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", [config_entries.SOURCE_ZEROCONF, config_entries.SOURCE_USER])
+async def test_pairing_cannot_adopt_another_uuid_at_same_endpoint(
+    hass: HomeAssistant, source: str
+) -> None:
+    """Reusing a host/port does not make a known UUID a legacy identity."""
+    old_uuid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=old_uuid, data=USER_INPUT)
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(return_value=INFO_OPEN),
+    ):
+        if source == config_entries.SOURCE_ZEROCONF:
+            result = await hass.config_entries.flow.async_init(
+                DOMAIN, context={"source": source}, data=_zeroconf_info()
+            )
+            assert result["type"] is FlowResultType.FORM
+            assert result["step_id"] == "zeroconf_confirm"
+        else:
+            result = await hass.config_entries.flow.async_init(
+                DOMAIN, context={"source": source}
+            )
+            with patch(
+                "custom_components.localsky.async_setup_entry",
+                new=AsyncMock(return_value=True),
+            ):
+                result = await hass.config_entries.flow.async_configure(
+                    result["flow_id"], USER_INPUT
+                )
+                await hass.async_block_till_done()
+            assert result["type"] is FlowResultType.CREATE_ENTRY
+            assert result["result"].unique_id == INFO_OPEN["uuid"]
+    assert entry.data == USER_INPUT
+    assert entry.unique_id == old_uuid
 
 
 @pytest.mark.asyncio
@@ -195,22 +379,30 @@ async def test_reauth_flow(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_zeroconf_adopts_legacy_host_keyed_entry(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize("legacy_id", ["192.0.2.10:8090", None])
+async def test_zeroconf_adopts_legacy_host_keyed_entry(
+    hass: HomeAssistant, legacy_id: str | None
+) -> None:
     """Pre-0.6 entries were keyed host:port; discovery adopts the uuid
     onto them instead of offering the same instance as new."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data=USER_INPUT,
-        unique_id="192.0.2.10:8090",
+        unique_id=legacy_id,
         title="LocalSky (192.0.2.10)",
     )
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_ZEROCONF},
-        data=_zeroconf_info(),
-    )
+    with patch(
+        "custom_components.localsky.config_flow._probe",
+        new=AsyncMock(return_value=INFO_OPEN),
+    ) as probe:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_zeroconf_info(),
+        )
+    assert probe.await_args.args[1:] == ("192.0.2.10", 8090, False)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert entry.unique_id == INFO_OPEN["uuid"]
