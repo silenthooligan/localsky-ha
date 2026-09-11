@@ -1,4 +1,4 @@
-"""Weather entity: hourly forecast mapping.
+"""Weather entity: daily and hourly forecast mapping.
 
 The hourly block is what carries a provider's convective forecasting. NWS
 marks thunderstorm hours as WMO 95 (mapped from its shortForecast text) and
@@ -7,6 +7,7 @@ summary, so these tests pin the field mapping that exposes them.
 """
 import inspect
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from homeassistant.components.weather import WeatherEntityFeature
@@ -24,9 +25,11 @@ class FakeWeather:
 
     _hourly_condition = mod.LocalSkyWeather._hourly_condition
     async_forecast_hourly = mod.LocalSkyWeather.async_forecast_hourly
+    async_forecast_daily = mod.LocalSkyWeather.async_forecast_daily
 
     def __init__(self, forecast):
         self._fc = forecast
+        self.coordinator = SimpleNamespace(data={"forecast": forecast})
         self.hass = object()
 
     def _forecast(self):
@@ -146,3 +149,40 @@ def test_wmo_thunderstorm_codes_map_to_lightning():
     assert _condition_from_wmo(99) == "lightning-rainy"
     assert _condition_from_wmo(None) is None
     assert _condition_from_wmo("junk") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("high", "low"),
+    [(82.0, 61.0), (None, 61.0), (82.0, None), (None, None), (0.0, -8.0)],
+)
+async def test_daily_api2_nullable_extrema_preserve_the_rest_of_the_day(high, low):
+    """Unknown extrema are independent; a real zero must stay a temperature."""
+    epoch = 1_760_000_000
+    out = await FakeWeather(
+        {
+            "daily": [
+                {
+                    "time_epoch": epoch,
+                    "temp_max_f": high,
+                    "temp_min_f": low,
+                    "precip_sum_in": 0.05,
+                    "precip_probability_max": 40,
+                    "wind_max_mph": 7.0,
+                    "weather_code": 95,
+                }
+            ]
+        }
+    ).async_forecast_daily()
+
+    assert out == [
+        {
+            "datetime": datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat(),
+            "native_temperature": high,
+            "native_templow": low,
+            "native_precipitation": 0.05,
+            "precipitation_probability": 40,
+            "native_wind_speed": 7.0,
+            "condition": "lightning",
+        }
+    ]

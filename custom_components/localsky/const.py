@@ -49,7 +49,9 @@ MIN_API_VERSION = "1.12.0"
 # schema MAJOR exceeds SUPPORTED_MANIFEST_MAJOR is ignored and the integration
 # falls back to its hardcoded entity list (exactly what the manifest
 # schema_version doc promises clients will do).
-SUPPORTED_API_MAJOR = 1
+# API 2 makes daily forecast high/low temperatures nullable. The weather
+# mapper preserves those unknown values and continues to accept API 1 numbers.
+SUPPORTED_API_MAJOR = 2
 SUPPORTED_MANIFEST_MAJOR = 1
 
 # Canonical API prefix on the LocalSky instance. Some deployments

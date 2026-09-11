@@ -20,10 +20,14 @@ def _entry(uid: str = INFO_OPEN["uuid"]) -> MockConfigEntry:
     return MockConfigEntry(domain=DOMAIN, data=ENTRY_DATA, unique_id=uid)
 
 
-def _patched_network():
-    """Silence every coordinator network touchpoint for lifecycle tests."""
+def _patched_network(api_version: str = INFO_OPEN["api_version"]):
+    """Silence network I/O while retaining fetch_info's metadata side effect."""
+    async def fetch_info(coordinator):
+        coordinator.info = {**INFO_OPEN, "api_version": api_version}
+        return coordinator.info
+
     return (
-        patch.object(LocalSkyCoordinator, "fetch_info", new=AsyncMock(return_value=INFO_OPEN)),
+        patch.object(LocalSkyCoordinator, "fetch_info", new=fetch_info),
         patch.object(LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=None)),
         patch.object(LocalSkyCoordinator, "async_start", new=AsyncMock()),
         patch.object(LocalSkyCoordinator, "async_stop", new=AsyncMock()),
@@ -31,16 +35,20 @@ def _patched_network():
 
 
 @pytest.mark.asyncio
-async def test_setup_populates_runtime_data_and_services(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize("api_version", ["1.13.0", "2.0.0"])
+async def test_setup_populates_runtime_data_and_services(
+    hass: HomeAssistant, api_version: str
+) -> None:
     entry = _entry()
     entry.add_to_hass(hass)
-    p1, p2, p3, p4 = _patched_network()
+    p1, p2, p3, p4 = _patched_network(api_version)
     with p1, p2, p3, p4:
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
         assert entry.state is ConfigEntryState.LOADED
         assert isinstance(entry.runtime_data, LocalSkyCoordinator)
+        assert entry.runtime_data.info["api_version"] == api_version
         for svc in SERVICES:
             assert hass.services.has_service(DOMAIN, svc)
 
@@ -102,3 +110,23 @@ async def test_unreachable_server_defers_setup(hass: HomeAssistant) -> None:
         assert not await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api_version", ["3.0.0", "99.0.0"])
+async def test_newer_api_major_refuses_setup_before_starting_coordinator(
+    hass: HomeAssistant, api_version: str, caplog
+) -> None:
+    entry = _entry()
+    entry.add_to_hass(hass)
+    p1, p2, p3, p4 = _patched_network(api_version)
+    with p1, p2, p3 as start, p4:
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        start.assert_not_awaited()
+
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert f"speaks API v{api_version}" in caplog.text
+    assert "Update the LocalSky integration" in caplog.text
+    for svc in SERVICES:
+        assert not hass.services.has_service(DOMAIN, svc)

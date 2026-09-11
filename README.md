@@ -60,7 +60,12 @@ Enter the host and port (default `8090`). Instances with auth enabled will ask f
 ## Requirements
 
 - Home Assistant **2024.11** or newer
-- A reachable [LocalSky](https://github.com/silenthooligan/localsky) **0.2.0** or newer
+- A reachable [LocalSky](https://github.com/silenthooligan/localsky) **0.7.0** or newer, with API **1.12.0 through 2.x**
+
+API 2 support includes daily forecasts with an unknown high or low temperature.
+Those values remain unknown in Home Assistant; the available temperature and
+the rest of the forecast remain visible. API 3 or newer is refused until this
+integration has been updated for that contract.
 
 ## No LocalSky yet?
 
