@@ -241,3 +241,33 @@ async def test_hourly_api2_nullable_weather_preserves_unknowns_and_zero(
     assert out[0]["humidity"] == humidity
     assert out[0]["condition"] == "lightning"
     assert out[0]["precipitation_probability"] == 40
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("amount", [None, 0.0, 0.05])
+async def test_daily_api2_nullable_rain_preserves_unknown_and_reported_zero(amount):
+    out = await FakeWeather({"daily": [{
+        "time_epoch": 1_760_000_000, "weather_code": 95,
+        "temp_max_f": 82.0, "temp_min_f": 61.0,
+        "precip_sum_in": amount, "precip_probability_max": 40,
+    }]}).async_forecast_daily()
+
+    assert len(out) == 1
+    assert out[0]["native_precipitation"] == amount
+    assert out[0]["native_temperature"] == 82.0
+    assert out[0]["precipitation_probability"] == 40
+    assert out[0]["condition"] == "lightning"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("amount", [None, 0.0, 0.05])
+async def test_hourly_api2_nullable_rain_preserves_unknown_and_reported_zero(amount):
+    out = await FakeWeather({"hourly": [
+        _hour(1_760_000_000, code=95, precip_in=amount),
+    ]}).async_forecast_hourly()
+
+    assert len(out) == 1
+    assert out[0]["native_precipitation"] == amount
+    assert out[0]["native_temperature"] == 95.0
+    assert out[0]["precipitation_probability"] == 40
+    assert out[0]["condition"] == "lightning"
