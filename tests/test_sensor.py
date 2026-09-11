@@ -64,19 +64,21 @@ DATA = {
 }
 
 
-async def _setup(hass: HomeAssistant) -> MockConfigEntry:
+async def _setup(
+    hass: HomeAssistant, *, manifest=MANIFEST, data=DATA
+) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN, data=ENTRY_DATA, unique_id=INFO_OPEN["uuid"]
     )
     entry.add_to_hass(hass)
 
     async def _start(self: LocalSkyCoordinator) -> None:
-        self.async_set_updated_data(DATA)
+        self.async_set_updated_data(data)
 
     with patch.object(
         LocalSkyCoordinator, "fetch_info", new=AsyncMock(return_value=INFO_OPEN)
     ), patch.object(
-        LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=MANIFEST)
+        LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=manifest)
     ), patch.object(
         LocalSkyCoordinator, "async_start", new=_start
     ), patch.object(
@@ -137,3 +139,55 @@ async def test_values_update_with_coordinator_data(hass: HomeAssistant) -> None:
     coordinator.async_set_updated_data(updated)
     await hass.async_block_till_done()
     assert float(_state(hass, entry, "air_temp_f").state) == 70.1
+
+
+@pytest.mark.asyncio
+async def test_api2_forecast_summary_nulls_become_unknown_and_zero_remains_real(
+    hass: HomeAssistant,
+) -> None:
+    fields = (
+        "wind_max_today_mph",
+        "temp_min_24h_f",
+        "temp_max_3day_f",
+        "humidity_now_pct",
+        "heat_index_now_f",
+        "heat_index_max_3day_f",
+    )
+    manifest = {
+        "entities": [
+            {
+                "id": field,
+                "platform": "sensor",
+                "name": field,
+                "snapshot": "irrigation",
+                "path": ["forecast", field],
+                "group": "forecast",
+            }
+            for field in fields
+        ]
+    }
+    data = {
+        **DATA,
+        "irrigation": {
+            **DATA["irrigation"],
+            "forecast": dict.fromkeys(fields, None),
+        },
+    }
+    entry = await _setup(hass, manifest=manifest, data=data)
+    for field in fields:
+        state = _state(hass, entry, field)
+        assert state is not None
+        assert state.state == "unknown"
+
+    entry.runtime_data.async_set_updated_data(
+        {
+            **data,
+            "irrigation": {
+                **data["irrigation"],
+                "forecast": dict.fromkeys(fields, 0.0),
+            },
+        }
+    )
+    await hass.async_block_till_done()
+    for field in fields:
+        assert float(_state(hass, entry, field).state) == 0.0

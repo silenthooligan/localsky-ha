@@ -186,3 +186,58 @@ async def test_daily_api2_nullable_extrema_preserve_the_rest_of_the_day(high, lo
             "condition": "lightning",
         }
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("wind", [None, 0.0, 7.0])
+async def test_daily_api2_missing_wind_and_humidity_keep_the_day(wind):
+    out = await FakeWeather(
+        {
+            "daily": [
+                {
+                    "time_epoch": 1_760_000_000,
+                    "temp_max_f": 82.0,
+                    "temp_min_f": None,
+                    "wind_max_mph": wind,
+                    "humidity_pct": None,
+                    "weather_code": 3,
+                }
+            ]
+        }
+    ).async_forecast_daily()
+
+    assert len(out) == 1
+    assert out[0]["native_wind_speed"] == wind
+    assert out[0]["native_temperature"] == 82.0
+    assert out[0]["native_templow"] is None
+    assert out[0]["condition"] == "cloudy"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("temperature", "wind", "humidity"),
+    [(None, None, None), (0.0, 0.0, 0), (77.9, 3.0, 75)],
+)
+async def test_hourly_api2_nullable_weather_preserves_unknowns_and_zero(
+    temperature, wind, humidity
+):
+    out = await FakeWeather(
+        {
+            "hourly": [
+                _hour(
+                    1_760_000_000,
+                    code=95,
+                    temp_f=temperature,
+                    wind_mph=wind,
+                    humidity_pct=humidity,
+                )
+            ]
+        }
+    ).async_forecast_hourly()
+
+    assert len(out) == 1
+    assert out[0]["native_temperature"] == temperature
+    assert out[0]["native_wind_speed"] == wind
+    assert out[0]["humidity"] == humidity
+    assert out[0]["condition"] == "lightning"
+    assert out[0]["precipitation_probability"] == 40
