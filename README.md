@@ -21,6 +21,13 @@
 
 Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 
+## 0.9.0
+
+Supports LocalSky 0.9.0 and API contract 2.1.0, while retaining API 1 compatibility.
+Missing weather and flow remain unknown. Discovery verifies the server and
+instance identity before moving a saved connection, and preserves HTTPS.
+Existing entity IDs remain unchanged.
+
 ## Why you'll like it
 
 - **Instant.** State arrives over server-sent events, not polling. A zone starts watering and Home Assistant knows in under a second.
