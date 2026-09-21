@@ -270,17 +270,21 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self, track: str, start_epoch: int, end_epoch: int
     ) -> dict[str, Any]:
         """Read a stored forecast window; this never starts an upstream fetch."""
-        if self.info is None:
+        for attempt in range(2):
+            version = (self.info or {}).get("api_version")
+            try:
+                compatible = isinstance(version, str) and (
+                    AwesomeVersion(version) >= AwesomeVersion("2.3.0")
+                )
+            except AwesomeVersionException:
+                compatible = False
+            if compatible:
+                break
+            if attempt:
+                raise UpdateFailed("Forecast windows require LocalSky 0.9.1 / API 2.3.0 or newer")
+            # The server may have upgraded since this HA entry was loaded.
+            # Refresh its metadata before telling the user to update it again.
             await self.fetch_info()
-        version = (self.info or {}).get("api_version")
-        try:
-            compatible = isinstance(version, str) and (
-                AwesomeVersion(version) >= AwesomeVersion("2.3.0")
-            )
-        except AwesomeVersionException:
-            compatible = False
-        if not compatible:
-            raise UpdateFailed("Forecast windows require LocalSky 0.9.1 / API 2.3.0 or newer")
         query = urlencode({"track": track, "from": start_epoch, "to": end_epoch})
         return await self._fetch(f"/forecast/window?{query}")
 

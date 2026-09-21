@@ -28,6 +28,8 @@ forecast or a named extra model over a time window, with original age and
 coverage. Missing values remain unknown. Existing entities and older-server
 compatibility are unchanged; the new action reports when the server needs an update.
 Override descriptions now correctly state that safety holds and global Skip apply.
+The forecast action refreshes old server-version metadata, so upgrading LocalSky
+does not leave HA asking for an update that is already installed.
 
 ```yaml
 action: localsky.get_forecast_window

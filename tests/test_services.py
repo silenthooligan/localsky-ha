@@ -52,12 +52,29 @@ async def test_forecast_window_returns_original_age_and_nulls(hass):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("version", ["2.2.0", "1.13.0", None, "invalid"])
 async def test_forecast_window_requires_the_additive_api(hass, version):
-    session = _FakeSession(_FakeResponse(body=WINDOW))
+    session = _FakeSession(_FakeResponse(body={"api_version": version}))
     coordinator = _coordinator(hass, session=session)
     coordinator.info = {"api_version": version}
     with pytest.raises(UpdateFailed, match="API 2.3.0"):
         await coordinator.get_forecast_window("merged", 1000, 2000)
-    assert not session.calls
+    assert len(session.calls) == 1
+    assert urlsplit(session.calls[0][1]).path.endswith("/info")
+
+
+@pytest.mark.asyncio
+async def test_forecast_window_notices_server_upgrade_without_reloading_ha(hass):
+    session = MagicMock()
+    session.get.side_effect = [
+        _FakeResponse(body={"api_version": "2.3.0"}),
+        _FakeResponse(body=WINDOW),
+    ]
+    coordinator = _coordinator(hass, session=session)
+    coordinator.info = {"api_version": "2.2.0"}
+    result = await coordinator.get_forecast_window("nbm", 1000, 2000)
+    assert result == WINDOW
+    assert coordinator.info["api_version"] == "2.3.0"
+    assert urlsplit(session.get.call_args_list[0].args[0]).path.endswith("/info")
+    assert urlsplit(session.get.call_args_list[1].args[0]).path.endswith("/forecast/window")
 
 
 @pytest.mark.asyncio
