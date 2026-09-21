@@ -21,6 +21,26 @@
 
 Full setup guide: **[localsky.io/docs/hacs](https://localsky.io/docs/hacs)**
 
+## 0.9.1
+
+Adds `localsky.get_forecast_window` for LocalSky API 2.3.0. Read the merged
+forecast or a named extra model over a time window, with original age and
+coverage. Missing values remain unknown. Existing entities and older-server
+compatibility are unchanged; the new action reports when the server needs an update.
+
+```yaml
+action: localsky.get_forecast_window
+data:
+  track: merged
+  start: "2026-09-21T13:00:00-04:00"
+  end: "2026-09-21T14:00:00-04:00"
+response_variable: afternoon_forecast
+```
+
+Both hour stamps are included. Rain at each stamp covers the following hour.
+Use `entry_id` when multiple instances are loaded. Check `complete`, `age_s`
+and nullable summary values before using the response in an automation.
+
 ## 0.9.0
 
 Supports LocalSky 0.9.0 and API contract 2.1.0, while retaining API 1 compatibility.

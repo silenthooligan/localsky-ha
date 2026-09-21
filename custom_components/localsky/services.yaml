@@ -163,3 +163,31 @@ set_zone_override:
       example: "01F3K2..."
       selector:
         text:
+get_forecast_window:
+  name: Get forecast window
+  description: Read an hourly forecast window, including its age and data coverage. Requires LocalSky 0.9.1 or newer.
+  fields:
+    track:
+      name: Forecast model name
+      description: Use merged for the dashboard forecast or the short name of an extra model configured in LocalSky.
+      default: merged
+      selector:
+        text:
+    start:
+      name: Start
+      description: First hour stamp to include. Dates without an offset use Home Assistant's timezone.
+      required: true
+      selector:
+        datetime:
+    end:
+      name: End
+      description: Last hour stamp to include, at most 48 hours after Start. Rain at each stamp covers the following hour.
+      required: true
+      selector:
+        datetime:
+    entry_id:
+      name: LocalSky entry
+      description: Required when more than one LocalSky instance is loaded.
+      selector:
+        config_entry:
+          integration: localsky

@@ -124,6 +124,28 @@
           "description": "Optional. Target a specific deployment."
         }
       }
+    },
+    "get_forecast_window": {
+      "name": "Vorhersagezeitraum abrufen",
+      "description": "Stündliche Vorhersage mit Alter und Datenabdeckung abrufen. Erfordert LocalSky 0.9.1 oder neuer.",
+      "fields": {
+        "track": {
+          "name": "Name des Vorhersagemodells",
+          "description": "merged verwendet die Dashboard-Vorhersage. Alternativ den Kurznamen eines zusätzlichen Modells eingeben."
+        },
+        "start": {
+          "name": "Beginn",
+          "description": "Erster Stundenzeitpunkt. Ohne Zeitversatz gilt die Zeitzone von Home Assistant."
+        },
+        "end": {
+          "name": "Ende",
+          "description": "Letzter Stundenzeitpunkt, höchstens 48 Stunden nach Beginn. Regen gilt jeweils für die folgende Stunde."
+        },
+        "entry_id": {
+          "name": "LocalSky-Eintrag",
+          "description": "Bei mehreren geladenen LocalSky-Instanzen erforderlich."
+        }
+      }
     }
   }
 }

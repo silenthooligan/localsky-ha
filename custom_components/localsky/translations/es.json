@@ -124,6 +124,28 @@
           "description": "Optional. Target a specific deployment."
         }
       }
+    },
+    "get_forecast_window": {
+      "name": "Obtener intervalo de previsión",
+      "description": "Consultar la previsión horaria, su antigüedad y cobertura. Requiere LocalSky 0.9.1 o posterior.",
+      "fields": {
+        "track": {
+          "name": "Nombre del modelo",
+          "description": "Usa merged para la previsión del panel o el nombre corto de un modelo adicional."
+        },
+        "start": {
+          "name": "Inicio",
+          "description": "Primera hora incluida. Sin desplazamiento se usa la zona horaria de Home Assistant."
+        },
+        "end": {
+          "name": "Fin",
+          "description": "Última hora incluida, como máximo 48 horas después del inicio. La lluvia corresponde a la hora siguiente."
+        },
+        "entry_id": {
+          "name": "Instancia de LocalSky",
+          "description": "Obligatorio si hay más de una instancia de LocalSky cargada."
+        }
+      }
     }
   }
 }

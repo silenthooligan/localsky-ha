@@ -124,6 +124,28 @@
           "description": "Optional. Target a specific deployment."
         }
       }
+    },
+    "get_forecast_window": {
+      "name": "Obtenir une plage de prévisions",
+      "description": "Consulter les prévisions horaires, leur ancienneté et leur couverture. Nécessite LocalSky 0.9.1 ou ultérieur.",
+      "fields": {
+        "track": {
+          "name": "Nom du modèle",
+          "description": "Utilisez merged pour les prévisions du tableau de bord ou le nom court d’un modèle supplémentaire."
+        },
+        "start": {
+          "name": "Début",
+          "description": "Première heure incluse. Sans décalage, le fuseau horaire de Home Assistant est utilisé."
+        },
+        "end": {
+          "name": "Fin",
+          "description": "Dernière heure incluse, au plus 48 heures après le début. La pluie correspond à l’heure suivante."
+        },
+        "entry_id": {
+          "name": "Instance LocalSky",
+          "description": "Obligatoire si plusieurs instances LocalSky sont chargées."
+        }
+      }
     }
   }
 }

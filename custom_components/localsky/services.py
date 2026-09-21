@@ -23,9 +23,11 @@ import time
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant, ServiceCall
+import aiohttp
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ACTION_CLEAR_PAUSE_UNTIL,
@@ -54,6 +56,18 @@ SVC_PAUSE = "pause"
 SVC_RESUME = "resume"
 SVC_SET_OVERRIDE = "set_override"
 SVC_SET_ZONE_OVERRIDE = "set_zone_override"
+SVC_FORECAST_WINDOW = "get_forecast_window"
+
+FORECAST_WINDOW_SCHEMA = vol.Schema(
+    {
+        vol.Optional("track", default="merged"): vol.All(
+            cv.string, vol.Match(r"^[a-z][a-z0-9_-]{0,39}$")
+        ),
+        vol.Required("start"): cv.datetime,
+        vol.Required("end"): cv.datetime,
+        vol.Optional(ATTR_ENTRY_ID): cv.string,
+    }
+)
 
 # Zone slugs the core accepts: lowercase alnum + underscore (mirrors the
 # allow-list in the core's SetZoneOverride dispatch). Validated here so a bad
@@ -153,6 +167,27 @@ async def _dispatch(hass: HomeAssistant, call: ServiceCall, payload: dict[str, A
 def async_register_services(hass: HomeAssistant) -> None:
     """Register all integration-level services. Idempotent."""
 
+    async def _forecast_window(call: ServiceCall) -> dict[str, Any]:
+        targets = _targets(hass, call)
+        if len(targets) != 1:
+            raise HomeAssistantError("Select entry_id when more than one LocalSky instance is loaded")
+        start = int(dt_util.as_utc(call.data["start"]).timestamp())
+        end = int(dt_util.as_utc(call.data["end"]).timestamp())
+        if start < 0 or end < start or end - start > 48 * 3600:
+            raise HomeAssistantError("Choose an ordered forecast window of at most 48 hours")
+        try:
+            return await targets[0].get_forecast_window(call.data["track"], start, end)
+        except aiohttp.ClientResponseError as err:
+            message = "Unknown LocalSky forecast track" if err.status == 404 else "LocalSky could not return the forecast window"
+            raise HomeAssistantError(message) from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise HomeAssistantError("Could not reach LocalSky for the forecast window") from err
+
+    hass.services.async_register(
+        DOMAIN, SVC_FORECAST_WINDOW, _forecast_window,
+        schema=FORECAST_WINDOW_SCHEMA, supports_response=SupportsResponse.ONLY,
+    )
+
     async def _run_zone(call: ServiceCall) -> None:
         await _dispatch(
             hass,
@@ -217,6 +252,7 @@ def async_unregister_services(hass: HomeAssistant) -> None:
         SVC_RESUME,
         SVC_SET_OVERRIDE,
         SVC_SET_ZONE_OVERRIDE,
+        SVC_FORECAST_WINDOW,
     ):
         if hass.services.has_service(DOMAIN, svc):
             hass.services.async_remove(DOMAIN, svc)
