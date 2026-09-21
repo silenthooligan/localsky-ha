@@ -1,6 +1,6 @@
 """Integration-level service actions for LocalSky.
 
-Seven user-facing actions:
+Irrigation actions and one forecast query:
 
 - ``localsky.run_zone``        Run a single zone for N seconds.
 - ``localsky.stop_zone``       Stop a single zone.
@@ -9,12 +9,14 @@ Seven user-facing actions:
 - ``localsky.resume``          Clear an active pause.
 - ``localsky.set_override``     Set the sticky global override (auto/skip/run).
 - ``localsky.set_zone_override`` Set a sticky per-zone override (auto/skip/run).
+- ``localsky.get_forecast_window`` Read one stored forecast window.
 
-Each service accepts an optional ``entry_id`` to target a specific
+Irrigation services accept an optional ``entry_id`` to target a specific
 LocalSky deployment; without it, the action fans out to every
 configured entry. The actual POST goes through
 ``LocalSkyCoordinator.dispatch_action`` so the coordinator refreshes
-immediately after.
+immediately after. The forecast query selects exactly one loaded entry and
+returns its stored data without refreshing a provider.
 """
 from __future__ import annotations
 

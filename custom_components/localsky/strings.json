@@ -127,11 +127,11 @@
     },
     "set_override": {
       "name": "Set global override",
-      "description": "Set the sticky global override (Auto, Skip, or Run). It persists until changed.",
+      "description": "Set the global irrigation override. Operator and safety holds still apply.",
       "fields": {
         "mode": {
           "name": "Mode",
-          "description": "Auto follows the engine, Skip force-skips, Run forces watering through the hard freeze and watering-restriction guards."
+          "description": "Auto follows the engine; Skip holds watering; Run requests watering while retaining safety checks."
         },
         "entry_id": {
           "name": "LocalSky entry",
@@ -141,7 +141,7 @@
     },
     "set_zone_override": {
       "name": "Set zone override",
-      "description": "Set a sticky per-zone override (Auto, Skip, or Run). It beats the global override.",
+      "description": "Set a zone override. Global Skip and safety holds still apply.",
       "fields": {
         "zone": {
           "name": "Zone slug",
@@ -149,7 +149,7 @@
         },
         "mode": {
           "name": "Mode",
-          "description": "Auto clears the override, Skip force-skips, Run forces this zone to water through the hard freeze and watering-restriction guards."
+          "description": "Auto clears the zone override; Skip holds this zone; Run requests watering while retaining safety checks."
         },
         "entry_id": {
           "name": "LocalSky entry",

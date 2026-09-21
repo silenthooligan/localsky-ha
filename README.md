@@ -122,3 +122,5 @@ Bug reports and PRs welcome. Engine, weather source, or controller issues belong
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+Override action descriptions now reflect server safety holds, including global Skip.
