@@ -27,6 +27,7 @@ Adds `localsky.get_forecast_window` for LocalSky API 2.3.0. Read the merged
 forecast or a named extra model over a time window, with original age and
 coverage. Missing values remain unknown. Existing entities and older-server
 compatibility are unchanged; the new action reports when the server needs an update.
+Override descriptions now correctly state that safety holds and global Skip apply.
 
 ```yaml
 action: localsky.get_forecast_window
@@ -122,5 +123,3 @@ Bug reports and PRs welcome. Engine, weather source, or controller issues belong
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
-
-Override action descriptions now reflect server safety holds, including global Skip.
