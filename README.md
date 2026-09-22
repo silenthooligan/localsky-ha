@@ -63,7 +63,7 @@ You can keep HA's WeatherFlow integration and map its sensors into LocalSky. For
 - A reachable LocalSky server **0.7.0 or newer**, using API **1.12.0 through 2.x**.
 - Forecast-window actions require server API **2.3.0 or newer**.
 
-The current companion release is **0.9.2**. Use matching server and companion releases when updating.
+The current companion release is **0.9.3**. Use matching server and companion releases when updating.
 
 ### Need the server too?
 
