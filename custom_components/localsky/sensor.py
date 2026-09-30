@@ -196,10 +196,12 @@ async def async_setup_entry(
         # Dynamic re-registration on zone-change is still handled by the
         # coordinator's listener — when zones appear/disappear, we
         # re-fetch the manifest and add only newly-described entities.
+        # The manifest listener does the same when a station first reports
+        # (or any other manifest gate flips) after setup.
         seen_zone_keys: set[str] = set(seen_ids)
 
         @callback
-        def _on_zones(_slugs: set[str]) -> None:
+        def _refresh() -> None:
             # Async refetch isn't allowed in a sync callback; punt to a
             # task. Re-creates entities for any descriptor id we haven't
             # already added.
@@ -209,7 +211,12 @@ async def async_setup_entry(
                 )
             )
 
+        @callback
+        def _on_zones(_slugs: set[str]) -> None:
+            _refresh()
+
         entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
+        entry.async_on_unload(coordinator.add_manifest_listener(_refresh))
         return
 
     # ── Fallback for LocalSky < manifest support ──
@@ -278,13 +285,19 @@ async def _async_refresh_manifest_entities(
     seen_ids: set[str],
 ) -> None:
     """Re-fetch the manifest and register any descriptors we haven't
-    seen yet (e.g. per-zone sensors for a newly-added zone)."""
+    seen yet (e.g. per-zone sensors for a newly-added zone, or station
+    sensors once the station first reports)."""
     manifest = await coordinator.fetch_manifest()
     if manifest is None:
         return
+    has_irrigation = coordinator.has_irrigation
     new_entities: list[SensorEntity] = []
     for desc in manifest.get("entities", []):
         if desc.get("platform") != "sensor":
+            continue
+        # Same weather-only filter as setup; the manifest listener also
+        # fires on installs with no irrigation.
+        if not has_irrigation and descriptor_is_irrigation_only(desc):
             continue
         if desc["id"] in seen_ids:
             continue

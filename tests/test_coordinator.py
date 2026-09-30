@@ -124,6 +124,63 @@ async def test_zone_listener_fires_on_changes_only(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
+async def test_manifest_listener_fires_when_a_gate_flips(hass: HomeAssistant) -> None:
+    coord = _coordinator(hass)
+    fired: list[None] = []
+    coord.add_manifest_listener(lambda: fired.append(None))
+
+    # First snapshot is the baseline the platforms' own manifest fetch saw.
+    coord._merge_and_publish("irrigation", {"zones": [], "station_serial": ""})
+    coord._merge_and_publish("irrigation", {"zones": [], "station_serial": ""})
+    assert fired == []
+
+    # The tempest stream can run ahead of the snapshot the manifest is built
+    # from, so it never triggers a re-fetch on its own.
+    coord._merge_and_publish("tempest", {"station_serial": "ST-00000001"})
+    assert fired == []
+
+    # The station's first report reaches the irrigation snapshot.
+    coord._merge_and_publish(
+        "irrigation",
+        {
+            "zones": [],
+            "station_serial": "ST-00000001",
+            "field_sources": {"air_temp_f": "tempest_lan"},
+        },
+    )
+    assert len(fired) == 1
+
+    # Values moving without a gate flipping is not a manifest change.
+    coord._merge_and_publish(
+        "irrigation",
+        {
+            "zones": [],
+            "station_serial": "ST-00000001",
+            "field_sources": {"air_temp_f": "tempest_lan", "rh_pct": "tempest_lan"},
+        },
+    )
+    assert len(fired) == 1
+
+
+@pytest.mark.asyncio
+async def test_poll_refresh_sets_the_manifest_gate_baseline(hass: HomeAssistant) -> None:
+    coord = _coordinator(hass)
+    fired: list[None] = []
+    coord.add_manifest_listener(lambda: fired.append(None))
+    responses = {
+        "/snapshot": {},
+        "/irrigation/snapshot": {"zones": [], "station_serial": ""},
+        "/forecast/snapshot": {},
+    }
+    with patch.object(coord, "_fetch", new=AsyncMock(side_effect=lambda p: responses[p])):
+        await coord._async_update_data()
+        assert fired == []
+        responses["/irrigation/snapshot"] = {"zones": [], "station_serial": "ST-00000001"}
+        await coord._async_update_data()
+    assert len(fired) == 1
+
+
+@pytest.mark.asyncio
 async def test_poll_refresh_merges_all_three_snapshots(hass: HomeAssistant) -> None:
     coord = _coordinator(hass)
     with patch.object(

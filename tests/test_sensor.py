@@ -65,7 +65,7 @@ DATA = {
 
 
 async def _setup(
-    hass: HomeAssistant, *, manifest=MANIFEST, data=DATA
+    hass: HomeAssistant, *, manifest=MANIFEST, data=DATA, info=INFO_OPEN
 ) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN, data=ENTRY_DATA, unique_id=INFO_OPEN["uuid"]
@@ -76,7 +76,7 @@ async def _setup(
         self.async_set_updated_data(data)
 
     with patch.object(
-        LocalSkyCoordinator, "fetch_info", new=AsyncMock(return_value=INFO_OPEN)
+        LocalSkyCoordinator, "fetch_info", new=AsyncMock(return_value=info)
     ), patch.object(
         LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=manifest)
     ), patch.object(
@@ -127,6 +127,80 @@ async def test_sensor_setup_ignores_other_platform_descriptors(hass: HomeAssista
     registry = er.async_get(hass)
     assert (
         registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_front_running")
+        is None
+    )
+
+
+BATTERY = {
+    "id": "battery_pct",
+    "platform": "sensor",
+    "name": "Station battery",
+    "snapshot": "tempest",
+    "path": ["battery_pct"],
+    "unit": "%",
+    "device_class": "battery",
+}
+
+
+@pytest.mark.asyncio
+async def test_station_sensors_added_when_the_station_first_reports(
+    hass: HomeAssistant,
+) -> None:
+    # HA set up before the station's first packet, so the manifest it read
+    # had no station-only sensors.
+    entry = await _setup(hass)
+    coordinator: LocalSkyCoordinator = entry.runtime_data
+    assert _state(hass, entry, "battery_pct") is None
+
+    later = {"entities": [*MANIFEST["entities"], BATTERY]}
+    with patch.object(
+        LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=later)
+    ):
+        coordinator._merge_and_publish("irrigation", {**DATA["irrigation"], "station_serial": ""})
+        coordinator._merge_and_publish(
+            "tempest", {**DATA["tempest"], "battery_pct": 98.2}
+        )
+        coordinator._merge_and_publish(
+            "irrigation", {**DATA["irrigation"], "station_serial": "ST-00000001"}
+        )
+        await hass.async_block_till_done()
+
+    battery = _state(hass, entry, "battery_pct")
+    assert battery is not None
+    assert float(battery.state) == 98.2
+    # Entities from the first manifest are not added twice.
+    assert float(_state(hass, entry, "air_temp_f").state) == 84.2
+
+
+@pytest.mark.asyncio
+async def test_manifest_refresh_keeps_irrigation_entities_off_weather_only(
+    hass: HomeAssistant,
+) -> None:
+    weather_only = {"entities": [MANIFEST["entities"][0]]}
+    entry = await _setup(
+        hass,
+        manifest=weather_only,
+        data={**DATA, "irrigation": {"zones": []}},
+        info={**INFO_OPEN, "has_irrigation": False},
+    )
+    coordinator: LocalSkyCoordinator = entry.runtime_data
+
+    later = {"entities": [MANIFEST["entities"][0], MANIFEST["entities"][2], BATTERY]}
+    with patch.object(
+        LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=later)
+    ):
+        coordinator._merge_and_publish("irrigation", {"zones": [], "station_serial": ""})
+        coordinator._merge_and_publish(
+            "irrigation", {"zones": [], "station_serial": "ST-00000001"}
+        )
+        await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_battery_pct")
+    assert (
+        registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_front_soil_moisture"
+        )
         is None
     )
 
