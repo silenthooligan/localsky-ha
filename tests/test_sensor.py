@@ -75,8 +75,13 @@ async def _setup(
     async def _start(self: LocalSkyCoordinator) -> None:
         self.async_set_updated_data(data)
 
+    async def _fetch_info(self: LocalSkyCoordinator) -> dict:
+        # Store it like the real fetch_info, so has_irrigation reads it.
+        self.info = info
+        return info
+
     with patch.object(
-        LocalSkyCoordinator, "fetch_info", new=AsyncMock(return_value=info)
+        LocalSkyCoordinator, "fetch_info", new=_fetch_info
     ), patch.object(
         LocalSkyCoordinator, "fetch_manifest", new=AsyncMock(return_value=manifest)
     ), patch.object(
