@@ -7,6 +7,9 @@ Connect a running [LocalSky server](https://github.com/silenthooligan/localsky) 
 
 **LocalSky runs the irrigation engine. This integration connects it to Home Assistant.**
 
+The upcoming 1.0.0 release includes the unreleased 0.9.4 integration fixes and
+matches the LocalSky 1.0.0 app. The supported API contract remains 2.x.
+
 ## Install and connect
 
 1. In **HACS**, search for **LocalSky** and install it.
