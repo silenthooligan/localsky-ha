@@ -9,7 +9,10 @@ endpoint has no SSE upstream — kept on a 5-minute poll regardless.
 Music-Assistant-style dynamic entity registration: every snapshot is
 diffed against the previously-seen zone set, and listeners (registered
 by platforms) fire on the changed slug set so new zones added in
-LocalSky's UI surface in HA without a reload.
+LocalSky's UI surface in HA without a reload. The same diff runs on the
+snapshot fields LocalSky's manifest gates on (station present, a
+temperature owner, flow meter, water level), so a station that first
+reports after HA set up still gets its entities without a reload.
 """
 from __future__ import annotations
 
@@ -77,6 +80,8 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._forecast_task: asyncio.Task[None] | None = None
         self._zone_listeners: list[Callable[[set[str]], None]] = []
         self._known_zones: set[str] = set()
+        self._manifest_listeners: list[Callable[[], None]] = []
+        self._manifest_gates: tuple[bool, ...] | None = None
         self.info: dict[str, Any] | None = None
         self.manifest: dict[str, Any] | None = None
         # SSE-mode coordinators don't poll; pure polling-mode falls back
@@ -133,6 +138,22 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         def _remove() -> None:
             try:
                 self._zone_listeners.remove(cb)
+            except ValueError:
+                pass
+
+        return _remove
+
+    def add_manifest_listener(self, cb: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback fired when a manifest gate input changes.
+
+        Platforms re-fetch the manifest and add descriptors they have not
+        seen. Not fired for the first snapshot: platforms fetch the manifest
+        after the first refresh, so that state is already reflected."""
+        self._manifest_listeners.append(cb)
+
+        def _remove() -> None:
+            try:
+                self._manifest_listeners.remove(cb)
             except ValueError:
                 pass
 
@@ -253,6 +274,7 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         merged = {"tempest": tempest, "irrigation": irrigation, "forecast": forecast}
         self._notify_zone_changes(merged)
+        self._notify_manifest_gates(merged)
         return merged
 
     async def _fetch(self, path: str) -> dict[str, Any]:
@@ -358,6 +380,7 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         merged[kind] = snapshot
         if kind == "irrigation":
             self._notify_zone_changes(merged)
+            self._notify_manifest_gates(merged)
         self.async_set_updated_data(merged)
 
     # ---- internal: forecast poller ----
@@ -392,6 +415,36 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 cb(set(slugs))
             except Exception:  # noqa: BLE001
                 _LOGGER.exception("Zone listener raised")
+
+    def _notify_manifest_gates(self, data: dict[str, Any]) -> None:
+        """Fire manifest listeners when a field the manifest gates on changes.
+
+        Read from the IRRIGATION snapshot because LocalSky builds the
+        manifest from that same snapshot; the tempest stream can run ahead
+        of it, and re-fetching on the tempest stream could read a manifest
+        that does not include the station yet. After a host reboot HA can
+        set up before the station's first packet (up to a minute), and the
+        station-only sensors (battery, wind lull, rain last minute) and wet
+        bulb were missing from the manifest HA saw."""
+        irrigation = data.get("irrigation")
+        if not isinstance(irrigation, dict):
+            return
+        gates = (
+            bool(irrigation.get("station_serial")),
+            "air_temp_f" in (irrigation.get("field_sources") or {}),
+            bool(irrigation.get("flow_meter")),
+            bool(irrigation.get("water_level_capable"))
+            or irrigation.get("water_level_pct") is not None,
+        )
+        previous = self._manifest_gates
+        self._manifest_gates = gates
+        if previous is None or gates == previous:
+            return
+        for cb in list(self._manifest_listeners):
+            try:
+                cb()
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Manifest listener raised")
 
     # ---- action dispatch ----
 

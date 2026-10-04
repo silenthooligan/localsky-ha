@@ -7,6 +7,11 @@ Connect a running [LocalSky server](https://github.com/silenthooligan/localsky) 
 
 **LocalSky runs the irrigation engine. This integration connects it to Home Assistant.**
 
+The stable 1.0.0 release includes the unreleased 0.9.4 integration fixes and
+matches the LocalSky 1.0.0 app. Station sensors appear when their first readings
+arrive after setup, without an integration reload. The supported API contract
+remains 2.x.
+
 ## Install and connect
 
 1. In **HACS**, search for **LocalSky** and install it.
@@ -63,7 +68,7 @@ You can keep HA's WeatherFlow integration and map its sensors into LocalSky. For
 - A reachable LocalSky server **0.7.0 or newer**, using API **1.12.0 through 2.x**.
 - Forecast-window actions require server API **2.3.0 or newer**.
 
-The current companion release is **0.9.3**. Use matching server and companion releases when updating.
+The current companion release is **1.0.0**. Use matching server and companion releases when updating.
 
 ### Need the server too?
 

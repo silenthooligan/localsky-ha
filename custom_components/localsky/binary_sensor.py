@@ -71,16 +71,24 @@ async def async_setup_entry(
             entities.append(ManifestBinarySensor(coordinator, entry, desc))
         async_add_entities(entities)
 
-        if not has_irrigation:
-            return
-
         @callback
-        def _on_zones(_slugs: set[str]) -> None:
+        def _refresh() -> None:
             hass.async_create_task(
                 _async_refresh_manifest_binaries(
                     entry, coordinator, async_add_entities, seen_ids
                 )
             )
+
+        # A station that first reports after setup can flip manifest gates
+        # on any install, weather-only included.
+        entry.async_on_unload(coordinator.add_manifest_listener(_refresh))
+
+        if not has_irrigation:
+            return
+
+        @callback
+        def _on_zones(_slugs: set[str]) -> None:
+            _refresh()
 
         entry.async_on_unload(coordinator.add_zone_listener(_on_zones))
         return
@@ -124,9 +132,12 @@ async def _async_refresh_manifest_binaries(
     manifest = await coordinator.fetch_manifest()
     if manifest is None:
         return
+    has_irrigation = coordinator.has_irrigation
     new_entities: list[BinarySensorEntity] = []
     for desc in manifest.get("entities", []):
         if desc.get("platform") != "binary_sensor":
+            continue
+        if not has_irrigation and descriptor_is_irrigation_only(desc):
             continue
         if desc["id"] in seen_ids:
             continue
