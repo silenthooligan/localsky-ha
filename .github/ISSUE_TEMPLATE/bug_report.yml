@@ -1,6 +1,6 @@
 name: Bug report
 description: Something is wrong with the LocalSky HACS integration
-labels: ["bug", "triage"]
+labels: ["bug", "triage", "component: integration"]
 body:
   - type: markdown
     attributes:
