@@ -16,6 +16,34 @@ from custom_components.localsky import weather as mod
 from custom_components.localsky.weather import _condition_from_wmo, _HOURLY_LIMIT
 
 
+@pytest.mark.parametrize(("sky", "expected"), [
+    ({"condition": "clear", "is_day": True}, "sunny"),
+    ({"condition": "clear", "is_day": False}, "clear-night"),
+    ({"condition": "clear", "is_day": None}, None),
+    ({"condition": "overcast", "is_day": False}, "cloudy"),
+    ({"condition": "partly_cloudy"}, "partlycloudy"),
+    ({"condition": "thunderstorm", "precipitating": False}, "lightning"),
+    ({"condition": "thunderstorm", "precipitating": True}, "lightning-rainy"),
+    ({"condition": "heavy_rain"}, "pouring"),
+    ({"condition": "unknown"}, None),
+    ({"condition": "low_visibility"}, None),
+    ({"condition": "new_condition"}, None),
+    ({"condition": []}, None),
+    (None, None),
+])
+def test_server_sky_is_authoritative_including_unknown(sky, expected):
+    # Contradictory legacy sunlight/forecast values cannot override the server.
+    snap = {"sky": sky, "solar_w_m2": 900, "lightning_strikes_last_hour": 10,
+            "rain_intensity_in_hr": 1.0}
+    assert mod._condition_from_snapshot(snap, {"hourly": [_hour(1_800_000_000, 95)]}) == expected
+
+
+@pytest.mark.parametrize("value", [None, "unknown", float("nan"), float("inf"), True])
+def test_invalid_forecast_numbers_remain_unavailable(value):
+    assert mod._as_float(value) is None
+    assert mod._as_int(value) is None
+
+
 class FakeWeather:
     """Exercises the mapping without standing up a full HA entity.
 
@@ -120,7 +148,7 @@ async def test_hourly_survives_sun_helper_failure(monkeypatch):
 
     out = await FakeWeather({"hourly": [_hour(1_760_000_000, code=0)]}).async_forecast_hourly()
 
-    assert out[0]["condition"] == "sunny"
+    assert out[0]["condition"] is None
 
 
 @pytest.mark.asyncio
@@ -149,6 +177,23 @@ def test_wmo_thunderstorm_codes_map_to_lightning():
     assert _condition_from_wmo(99) == "lightning-rainy"
     assert _condition_from_wmo(None) is None
     assert _condition_from_wmo("junk") is None
+    assert _condition_from_wmo(float("inf")) is None
+    assert _condition_from_wmo(float("nan")) is None
+    assert _condition_from_wmo(True) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["daily", "hourly"])
+async def test_corrupt_forecast_rows_do_not_discard_valid_entries(kind):
+    valid = _hour(1_760_000_000, code=3)
+    invalid = [None, "invalid", {"time_epoch": True},
+               {"time_epoch": float("inf")}, {"time_epoch": float("nan")},
+               {"time_epoch": 10**100}]
+    entity = FakeWeather({kind: invalid + [valid]})
+    out = await getattr(entity, "async_forecast_" + kind)()
+    assert len(out) == 1
+    assert out[0]["datetime"] == datetime.fromtimestamp(valid["time_epoch"], timezone.utc).isoformat()
+    assert out[0]["condition"] == "cloudy"
 
 
 @pytest.mark.asyncio

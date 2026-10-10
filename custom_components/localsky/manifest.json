@@ -15,7 +15,7 @@
  ],
  "quality_scale": "silver",
  "requirements": [],
- "version": "1.0.1",
+ "version": "1.0.2",
  "zeroconf": [
   "_localsky._tcp.local."
  ]

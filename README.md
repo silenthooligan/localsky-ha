@@ -7,10 +7,11 @@ Connect a running [LocalSky server](https://github.com/silenthooligan/localsky) 
 
 **LocalSky runs the irrigation engine. This integration connects it to Home Assistant.**
 
-Companion 1.0.1 matches the LocalSky 1.0.1 app, which adds per-device
-notification settings. The integration itself is unchanged from 1.0.0: station
-sensors appear when their first readings arrive after setup, without an
-integration reload. The supported API contract remains 2.x.
+Companion 1.0.2 follows the LocalSky 1.0.2 server's current sky conditions,
+including location-based day/night, observed clouds and explicitly unknown
+conditions. Missing or invalid readings remain unavailable. Malformed forecast
+rows do not discard the remaining forecast. Older servers keep their existing
+condition mapping; the supported API contract remains 1.12.0 through 2.x.
 
 ## Install and connect
 

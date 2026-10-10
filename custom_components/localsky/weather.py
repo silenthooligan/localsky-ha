@@ -8,6 +8,7 @@ forecast snapshot when present.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -40,9 +41,8 @@ from .util import device_info_for
 _LOGGER = logging.getLogger(__name__)
 
 
-# Tempest precip_type to HA condition. Tempest reports 0=none/1=rain/2=hail.
-# We blend with cloud-cover heuristics from solar irradiance only when
-# precip is none, since LocalSky doesn't yet expose a live cloud-cover field.
+# Older servers lack the shared sky decision (introduced in API 2.5).
+# Keep their legacy mapping for compatibility. New servers own the decision.
 #
 # `forecast` is the forecast snapshot; on a cloud-only install (no live local
 # station: snap.has_live_station is false) the solar-only heuristic has no real
@@ -52,6 +52,10 @@ def _condition_from_snapshot(
     tempest: dict[str, Any],
     forecast: dict[str, Any] | None = None,
 ) -> str | None:
+    # API 2.5 owns the sky decision. Explicit unknown/malformed new data must
+    # remain unknown, not fall through to the legacy brightness heuristic.
+    if "sky" in tempest:
+        return _condition_from_sky(tempest["sky"])
     precip_type = tempest.get("precip_type")
     rain_in_hr = float(tempest.get("rain_intensity_in_hr") or 0)
     lightning = int(tempest.get("lightning_strikes_last_hour") or 0)
@@ -85,6 +89,29 @@ def _condition_from_snapshot(
     if solar > 30:
         return "cloudy"
     return "clear-night"
+
+
+def _condition_from_sky(sky: Any) -> str | None:
+    """Map LocalSky's evidence-based condition to HA's smaller vocabulary."""
+    if not isinstance(sky, dict):
+        return None
+    condition = sky.get("condition")
+    if condition == "clear":
+        if sky.get("is_day") is True:
+            return "sunny"
+        if sky.get("is_day") is False:
+            return "clear-night"
+        return None
+    if condition == "thunderstorm":
+        return "lightning-rainy" if sky.get("precipitating") is True else "lightning"
+    # HA has no generic low-visibility condition. Calling smoke/dust "fog"
+    # would claim a cause that the server deliberately leaves unknown.
+    return {
+        "mostly_clear": "partlycloudy", "partly_cloudy": "partlycloudy",
+        "mostly_cloudy": "cloudy", "overcast": "cloudy", "fog": "fog",
+        "light_rain": "rainy", "rain": "rainy", "heavy_rain": "pouring",
+        "snow": "snowy", "wintry_mix": "snowy-rainy", "hail": "hail",
+    }.get(condition) if isinstance(condition, str) else None
 
 
 def _condition_from_nearest_hour(forecast: dict[str, Any] | None) -> str | None:
@@ -139,9 +166,11 @@ _WMO_TO_CONDITION = {
 
 
 def _condition_from_wmo(code: Any) -> str | None:
+    if isinstance(code, bool):
+        return None
     try:
         return _WMO_TO_CONDITION.get(int(code))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
@@ -186,59 +215,67 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
     @property
     def native_temperature(self) -> float | None:
         v = self._tempest().get("air_temp_f")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def native_apparent_temperature(self) -> float | None:
         v = self._tempest().get("feels_like_f")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def native_dew_point(self) -> float | None:
         v = self._tempest().get("dew_point_f")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def humidity(self) -> float | None:
         v = self._tempest().get("rh_pct")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def native_pressure(self) -> float | None:
         v = self._tempest().get("pressure_inhg")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def native_wind_speed(self) -> float | None:
         v = self._tempest().get("wind_avg_mph")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def native_wind_gust_speed(self) -> float | None:
         v = self._tempest().get("wind_gust_mph")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def wind_bearing(self) -> float | None:
         v = self._tempest().get("wind_dir_deg")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     @property
     def uv_index(self) -> float | None:
         v = self._tempest().get("uv_index")
-        return float(v) if v is not None else None
+        return _as_float(v)
 
     async def async_forecast_daily(self) -> list[Forecast] | None:
         forecast = (self.coordinator.data or {}).get("forecast") or {}
         days = forecast.get("daily") or forecast.get("days") or []
+        if not isinstance(days, list):
+            return None
         out: list[Forecast] = []
-        for d in days[:7]:
+        for d in days:
+            if len(out) >= 7:
+                break
+            if not isinstance(d, dict):
+                continue
             # LocalSky's forecast snapshot uses `time_epoch`; keep the older
             # keys as fallbacks for forward/backward compatibility.
             ts = d.get("time_epoch") or d.get("epoch") or d.get("date_epoch")
-            if isinstance(ts, (int, float)):
+            if isinstance(ts, bool) or not isinstance(ts, (int, float)):
+                continue
+            try:
                 dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
-            else:
+            except (ValueError, OverflowError, OSError):
                 continue
             condition = _condition_from_wmo(d.get("weather_code"))
             if condition is None:
@@ -287,9 +324,12 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
             if not isinstance(h, dict):
                 continue
             ts = h.get("time_epoch")
-            if not isinstance(ts, (int, float)):
+            if isinstance(ts, bool) or not isinstance(ts, (int, float)):
                 continue
-            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+            try:
+                dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+            except (ValueError, OverflowError, OSError):
+                continue
             out.append(
                 Forecast(
                     datetime=dt.isoformat(),
@@ -322,19 +362,22 @@ class LocalSkyWeather(CoordinatorEntity[LocalSkyCoordinator], WeatherEntity):
             if not is_up(self.hass, dt):
                 return "clear-night"
         except Exception:  # noqa: BLE001 - sun helper needs configured lat/lon
-            _LOGGER.debug("sun position unavailable for %s; leaving 'sunny'", dt)
+            _LOGGER.debug("sun position unavailable for %s", dt)
+            return None
         return condition
 
 
 def _as_float(v: Any) -> float | None:
     try:
-        return float(v) if v is not None else None
-    except (TypeError, ValueError):
+        value = float(v) if v is not None and not isinstance(v, bool) else None
+        return value if value is not None and math.isfinite(value) else None
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
 def _as_int(v: Any) -> int | None:
     try:
-        return int(v) if v is not None else None
-    except (TypeError, ValueError):
+        value = _as_float(v)
+        return int(value) if value is not None else None
+    except (TypeError, ValueError, OverflowError):
         return None
