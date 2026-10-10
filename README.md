@@ -13,6 +13,9 @@ conditions. Missing or invalid readings remain unavailable. Malformed forecast
 rows do not discard the remaining forecast. Older servers keep their existing
 condition mapping; the supported API contract remains 1.12.0 through 2.x.
 
+Companion tests cover both Python 3.13 and 3.14, so current Home Assistant
+releases are tested alongside the older compatible runtime.
+
 ## Install and connect
 
 1. In **HACS**, search for **LocalSky** and install it.
