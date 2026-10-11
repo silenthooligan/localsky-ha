@@ -1,0 +1,11 @@
+# HA 2024.11.0, the minimum advertised by hacs.json (Python 3.12).
+pytest-homeassistant-custom-component==0.13.181
+aiohttp
+# HA's optional discovery requirements, imported by the old metadata module.
+zeroconf==0.136.0
+ifaddr==0.2.0
+# HA 2024.11's acme dependency predates josepy 2's API removal.
+josepy==1.14.0
+# Match the old resolver runtime; newer pycares starts a process-wide thread
+# that the 2024 test harness predates and mistakes for an integration leak.
+pycares==4.4.0

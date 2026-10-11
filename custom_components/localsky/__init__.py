@@ -12,6 +12,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import device_registry as dr
 
 from .const import (
     CONF_HOST,
@@ -23,7 +24,7 @@ from .const import (
 )
 from .coordinator import LocalSkyConfigEntry, LocalSkyCoordinator
 from .services import async_register_services, async_unregister_services
-from .util import async_sync_weather_device_name, format_base_url
+from .util import async_sync_weather_device_name, device_info_for, format_base_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +71,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: LocalSkyConfigEntry) -> 
 
     await coordinator.async_start()
 
+    # Reuse the existing identifier so upgrades retain devices, areas and
+    # entity IDs. Parent registration must precede child platform setup.
+    hub = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        **device_info_for(entry, coordinator),
+    )
+    coordinator.hub_device_id = hub.id
     entry.runtime_data = coordinator
 
     # Register integration-level services once, on the first entry setup.

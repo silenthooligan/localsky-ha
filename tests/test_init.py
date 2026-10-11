@@ -4,16 +4,65 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.localsky.const import DOMAIN
 from custom_components.localsky.coordinator import LocalSkyCoordinator
+from custom_components.localsky.util import device_info_for
 
 from .conftest import INFO_OPEN
 
 ENTRY_DATA = {"host": "192.0.2.10", "port": 8090, "use_https": False}
 
 SERVICES = ("run_zone", "stop_zone", "stop_all")
+
+
+async def test_registry_identity_and_parent_links_survive_reload(hass: HomeAssistant, caplog) -> None:
+    entry = _entry()
+    entry.add_to_hass(hass)
+    registry = dr.async_get(hass)
+    hub = registry.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, entry.entry_id)}, name="LocalSky"
+    )
+    area = ar.async_get(hass).async_create("Garden")
+    registry.async_update_device(hub.id, name_by_user="My LocalSky", area_id=area.id)
+    existing = {}
+    for group in ("tempest", "irrigation", "forecast"):
+        child = registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{entry.entry_id}_{group}")}, name=group,
+        )
+        registry.async_update_device(child.id, via_device_id=hub.id, name_by_user=f"My {group}", area_id=area.id)
+        existing[group] = child.id
+    p1, p2, p3, p4 = _patched_network()
+    with p1, p2, p3, p4:
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        entities = er.async_get(hass)
+        before = {e.entity_id: (e.unique_id, e.device_id) for e in
+                  er.async_entries_for_config_entry(entities, entry.entry_id)}
+        assert before
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        assert {e.entity_id: (e.unique_id, e.device_id) for e in
+                er.async_entries_for_config_entry(entities, entry.entry_id)} == before
+        assert entry.runtime_data.hub_device_id == hub.id
+        assert registry.async_get(hub.id).name_by_user == "My LocalSky"
+        for group, device_id in existing.items():
+            info = device_info_for(entry, entry.runtime_data, group)
+            if "via_device_id" in dr.DeviceInfo.__annotations__:
+                assert info["via_device_id"] == hub.id
+                assert "via_device" not in info
+            else:
+                assert info["via_device"] == (DOMAIN, entry.entry_id)
+            device = registry.async_get_or_create(config_entry_id=entry.entry_id, **info)
+            assert device.id == device_id
+            assert device.via_device_id == hub.id
+            assert device.name_by_user == f"My {group}"
+            assert device.area_id == area.id
+        assert not [r for r in caplog.records if "localsky" in r.message.lower()
+                    and "deprecated" in r.message.lower() and "device" in r.message.lower()]
 
 
 def _entry(uid: str = INFO_OPEN["uuid"]) -> MockConfigEntry:
