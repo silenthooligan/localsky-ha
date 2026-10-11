@@ -19,6 +19,8 @@ releases are tested alongside the older compatible runtime.
 Unreleased maintenance uses Home Assistant's scoped device lookup and parent
 registry IDs where supported, retaining the older registry APIs on older HA.
 Existing device identifiers, entity IDs and user-assigned names are preserved.
+The minimum-version check also covers discovery on HA 2024.11, before HA moved
+its discovery metadata to a new module.
 
 ## Install and connect
 
