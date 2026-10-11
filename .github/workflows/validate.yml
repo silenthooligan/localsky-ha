@@ -38,7 +38,8 @@ jobs:
           python-version: ${{ matrix.python }}
       # Exercise the advertised HA floor as well as current compatible HA.
       - if: matrix.python == '3.12'
-        run: pip install pytest-homeassistant-custom-component==0.13.181 aiohttp
+        # HA 2024.11's acme dependency predates josepy 2's API removal.
+        run: pip install pytest-homeassistant-custom-component==0.13.181 aiohttp josepy==1.14.0
       - if: matrix.python != '3.12'
         run: pip install -r requirements_test.txt
       - run: pytest tests/ -q
