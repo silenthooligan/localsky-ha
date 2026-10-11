@@ -16,6 +16,13 @@ from .conftest import INFO_AUTH, INFO_OPEN, INFO_TOO_OLD
 USER_INPUT = {"host": "192.0.2.10", "port": 8090, "use_https": False}
 
 
+@pytest.fixture(autouse=True)
+def mock_unload_for_flow_tests():
+    """Pairing tests mock setup, so there is no coordinator to unload."""
+    with patch("custom_components.localsky.async_unload_entry", new=AsyncMock(return_value=True)):
+        yield
+
+
 def _zeroconf_info(
     props: dict | None = None, *, host: str = "192.0.2.10", port: int = 8090
 ) -> ZeroconfServiceInfo:
