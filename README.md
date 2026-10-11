@@ -16,6 +16,10 @@ condition mapping; the supported API contract remains 1.12.0 through 2.x.
 Companion tests cover both Python 3.13 and 3.14, so current Home Assistant
 releases are tested alongside the older compatible runtime.
 
+Unreleased maintenance uses Home Assistant's scoped device lookup and parent
+registry IDs where supported, retaining the older registry APIs on older HA.
+Existing device identifiers, entity IDs and user-assigned names are preserved.
+
 ## Install and connect
 
 1. In **HACS**, search for **LocalSky** and install it.

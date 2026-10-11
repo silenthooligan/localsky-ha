@@ -164,12 +164,19 @@ def device_info_for(
     """DeviceInfo for an entity, grouped into a sub-device by `group`.
 
     `group=None` (or an unknown group) returns the top-level LocalSky hub.
-    A known group returns a sub-device linked to the hub via `via_device`,
+    A known group returns a sub-device linked to the hub,
     so HA renders LocalSky -> {Weather, Irrigation, Forecast}. The weather
     sub-device's name/model follow the source LocalSky reports rather than
     assuming a Tempest station.
     """
     hub = (DOMAIN, entry.entry_id)
+    # HA 2026.8+ links by registry ID; older supported releases accept the
+    # identifier tuple. Setup registers the hub before any entity platform.
+    parent = (
+        {"via_device_id": getattr(coordinator, "hub_device_id", None)}
+        if "via_device_id" in DeviceInfo.__annotations__
+        else {"via_device": hub}
+    )
     info = getattr(coordinator, "info", None)
     base_url = format_base_url(
         entry.data.get("host", ""),
@@ -183,7 +190,7 @@ def device_info_for(
             name=name,
             manufacturer="LocalSky",
             model=model,
-            via_device=hub,
+            **parent,
             configuration_url=base_url,
         )
     if not group or group not in _GROUP_LABELS:
@@ -201,7 +208,7 @@ def device_info_for(
         name=f"LocalSky {name}",
         manufacturer="LocalSky",
         model=model,
-        via_device=hub,
+        **parent,
         configuration_url=base_url,
     )
 
@@ -230,9 +237,12 @@ def async_sync_weather_device_name(
         # the device back to the neutral placeholder on a transient gap.
         return
     registry = dr.async_get(hass)
-    device = registry.async_get_device(
-        identifiers={(DOMAIN, f"{entry.entry_id}_tempest")}
-    )
+    identifier = (DOMAIN, f"{entry.entry_id}_tempest")
+    if hasattr(registry, "async_get_device_by_identifier"):
+        device = registry.async_get_device_by_identifier(identifier, entry.entry_id)
+    else:
+        # Compatibility with HA before the 2026.8 registry migration.
+        device = registry.async_get_device(identifiers={identifier})
     if device is None or device.name_by_user:
         return
     if device.name == name and device.model == model:

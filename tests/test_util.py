@@ -1,5 +1,6 @@
 """Source-label prettifying and weather sub-device name upkeep."""
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -61,7 +62,12 @@ async def test_sync_renames_the_device_when_the_owner_changes(hass: HomeAssistan
         model="Open-Meteo weather source",
     )
 
-    async_sync_weather_device_name(hass, entry, _coordinator("Tempest"))
+    if hasattr(registry, "async_get_device_by_identifier"):
+        # On current HA, the compatibility path must never be called.
+        with patch.object(type(registry), "async_get_device", side_effect=AssertionError("deprecated lookup")):
+            async_sync_weather_device_name(hass, entry, _coordinator("Tempest"))
+    else:
+        async_sync_weather_device_name(hass, entry, _coordinator("Tempest"))
     device = registry.async_get(device.id)
     assert device.name == "LocalSky Tempest"
     assert device.model == "Tempest weather source"
@@ -97,3 +103,19 @@ async def test_sync_leaves_the_name_alone_before_the_first_reading(hass: HomeAss
 
     async_sync_weather_device_name(hass, entry, _coordinator(None))
     assert registry.async_get(device.id).name == "LocalSky Tempest"
+
+
+async def test_scoped_lookup_does_not_rename_another_entry(hass: HomeAssistant) -> None:
+    registry = dr.async_get(hass)
+    if not hasattr(registry, "async_get_device_by_identifier"):
+        pytest.skip("Older HA has globally unique device identifiers")
+    first = MockConfigEntry(domain=DOMAIN, data={"host": "192.0.2.10"})
+    second = MockConfigEntry(domain=DOMAIN, data={"host": "192.0.2.11"})
+    first.add_to_hass(hass)
+    second.add_to_hass(hass)
+    identifier = (DOMAIN, f"{first.entry_id}_tempest")
+    foreign = registry.async_get_or_create(
+        config_entry_id=second.entry_id, identifiers={identifier}, name="Other station"
+    )
+    async_sync_weather_device_name(hass, first, _coordinator("Tempest"))
+    assert registry.async_get(foreign.id).name == "Other station"

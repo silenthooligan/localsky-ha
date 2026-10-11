@@ -83,6 +83,7 @@ class LocalSkyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._manifest_listeners: list[Callable[[], None]] = []
         self._manifest_gates: tuple[bool, ...] | None = None
         self.info: dict[str, Any] | None = None
+        self.hub_device_id: str | None = None
         self.manifest: dict[str, Any] | None = None
         # SSE-mode coordinators don't poll; pure polling-mode falls back
         # to the configured interval. We pick the mode in async_setup().
